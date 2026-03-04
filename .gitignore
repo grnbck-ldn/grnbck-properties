@@ -142,7 +142,7 @@ vite.config.ts.timestamp-*
 src-tauri/target/
 src-tauri/.tauri/
 
-# Rust compiled artifacts
+# Rust artifacts
 *.pdb
 *.rlib
 *.rmeta

@@ -225,7 +225,7 @@ export function App() {
       )}
       <div className="row between" style={{ marginBottom: 14 }}>
         <div>
-          <h1>grnbck Properties <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v0.2.4</span></h1>
+          <h1>grnbck Properties <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v0.2.5</span></h1>
           <div className="small">
             {profile ? (
               <>

@@ -1,1 +1,15 @@
-{}
+{
+  "version": "0.2.0",
+  "notes": "Update to v0.2.0",
+  "pub_date": "2026-03-05T12:48:44Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "",
+      "url": ""
+    },
+    "darwin-universal": {
+      "signature": "",
+      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v0.2.0/grnbck.Properties_universal.app.tar.gz"
+    }
+  }
+}

@@ -69,9 +69,9 @@ jobs:
 
           RELEASE=$(gh release view "$TAG" --json assets --jq '.assets')
 
-          # Find the .nsis.zip signature (Windows)
-          WIN_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".nsis.zip.sig")) | .url' | head -1)
-          WIN_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".nsis.zip")) | select(.name | endswith(".sig") | not) | .url' | head -1)
+          # Find the .exe signature (Windows)
+          WIN_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith("-setup.exe.sig")) | .url' | head -1)
+          WIN_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith("-setup.exe")) | select(.name | endswith(".sig") | not) | .url' | head -1)
 
           # Find the .app.tar.gz signature (macOS)
           MAC_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".app.tar.gz.sig")) | .url' | head -1)

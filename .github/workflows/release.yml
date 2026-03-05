@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ""
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "v__VERSION__"
+          releaseBody: "See the assets for the installers."
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}
+
+  update-json:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: Generate latest.json from GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+
+          RELEASE=$(gh release view "$TAG" --json assets --jq '.assets')
+
+          # Find the .nsis.zip signature (Windows)
+          WIN_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".nsis.zip.sig")) | .url' | head -1)
+          WIN_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".nsis.zip")) | select(.name | endswith(".sig") | not) | .url' | head -1)
+
+          # Find the .app.tar.gz signature (macOS)
+          MAC_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".app.tar.gz.sig")) | .url' | head -1)
+          MAC_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".app.tar.gz")) | select(.name | endswith(".sig") | not) | .url' | head -1)
+
+          WIN_SIG=""
+          if [ -n "$WIN_SIG_URL" ] && [ "$WIN_SIG_URL" != "null" ]; then
+            WIN_SIG=$(curl -sL "$WIN_SIG_URL")
+          fi
+
+          MAC_SIG=""
+          if [ -n "$MAC_SIG_URL" ] && [ "$MAC_SIG_URL" != "null" ]; then
+            MAC_SIG=$(curl -sL "$MAC_SIG_URL")
+          fi
+
+          cat > latest.json << ENDJSON
+          {
+            "version": "$VERSION",
+            "notes": "Update to v$VERSION",
+            "pub_date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "platforms": {
+              "windows-x86_64": {
+                "signature": "$WIN_SIG",
+                "url": "$WIN_URL"
+              },
+              "darwin-universal": {
+                "signature": "$MAC_SIG",
+                "url": "$MAC_URL"
+              }
+            }
+          }
+          ENDJSON
+
+      - name: Commit and push latest.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add latest.json
+          git diff --cached --quiet || git commit -m "Update latest.json for ${GITHUB_REF_NAME}"
+          git push

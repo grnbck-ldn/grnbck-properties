@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-shell";
+import { check } from "@tauri-apps/plugin-updater";
 import { supabase } from "../lib/supabase";
 import { PropertyRow, ProfileRow } from "../lib/types";
 import { calcGrossIrr, calcNetYield, fmtGBP, fmtPct } from "../lib/finance";
@@ -34,6 +35,7 @@ export function App() {
   const [creating, setCreating] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -43,6 +45,18 @@ export function App() {
     return () => {
       sub.subscription.unsubscribe();
     };
+  }, []);
+
+  useEffect(() => {
+    check()
+      .then(async (update) => {
+        if (update) {
+          setUpdateStatus(`Updating to v${update.version}…`);
+          await update.downloadAndInstall();
+          setUpdateStatus("Update installed — restart to apply.");
+        }
+      })
+      .catch((e) => console.error("Update check failed:", e));
   }, []);
 
   async function loadProfileAndProperties() {
@@ -204,6 +218,11 @@ export function App() {
 
   return (
     <div className="container">
+      {updateStatus && (
+        <div className="card" style={{ marginBottom: 12, padding: "10px 16px", background: "rgba(125,211,252,0.10)" }}>
+          {updateStatus}
+        </div>
+      )}
       <div className="row between" style={{ marginBottom: 14 }}>
         <div>
           <h1>grnbck Properties</h1>

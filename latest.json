@@ -1,15 +1,15 @@
 {
-  "version": "0.2.3",
-  "notes": "Update to v0.2.3",
-  "pub_date": "2026-03-05T14:20:26Z",
+  "version": "0.2.5",
+  "notes": "Update to v0.2.5",
+  "pub_date": "2026-03-05T15:19:03Z",
   "platforms": {
     "windows-x86_64": {
       "signature": "Not Found",
-      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v0.2.3/grnbck.Properties_0.2.3_x64-setup.exe"
+      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v0.2.5/grnbck.Properties_0.2.5_x64-setup.exe"
     },
     "darwin-universal": {
       "signature": "Not Found",
-      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v0.2.3/grnbck.Properties_universal.app.tar.gz"
+      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v0.2.5/grnbck.Properties_universal.app.tar.gz"
     }
   }
 }

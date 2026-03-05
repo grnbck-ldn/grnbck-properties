@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(rm:*)",
+      "Bash(sed:*)",
+      "Read(//c/Users/linus/**)",
+      "Bash(tasklist)",
+      "Bash(reg query:*)",
+      "Bash(./grnbck-properties.exe:*)",
+      "Bash(curl:*)"
+    ]
+  }
+}

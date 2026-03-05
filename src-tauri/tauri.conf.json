@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "grnbck Properties",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "identifier": "com.grnbck.properties",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -25,6 +25,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/icon.ico",
       "icons/icon.png",
@@ -32,5 +33,16 @@
       "icons/32x32.png",
       "icons/128x128.png"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDcyQzA2MTFCNEQwQzkyNEUKUldST2tneE5HMkhBY2lKUjF5NTVUVk9BWWhuMU5TVllrRzZ4VUJ4VHJaTTc4aytoUWE2dzRoT2cK",
+      "endpoints": [
+        "https://grnbck-ldn.github.io/grnbck-properties/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

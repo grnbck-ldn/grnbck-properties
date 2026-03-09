@@ -1,0 +1,428 @@
+import React, { useState, useEffect } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { open } from "@tauri-apps/plugin-shell";
+import { fmtGBP, fmtPct } from "../lib/finance";
+
+interface ScrapedProperty {
+  url: string;
+  address: string;
+  price?: number;
+  property_type: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  agent: string;
+  description: string;
+  tenure?: string;
+  size_sqft?: number;
+  estimated_yield?: number;
+  sale_date?: string;
+}
+
+interface Props {
+  onAddProperty: (property: any) => void;
+}
+
+export function PropertyFinder({ onAddProperty }: Props) {
+  const [loading, setLoading] = useState(false);
+  const [foundProperties, setFoundProperties] = useState<ScrapedProperty[]>([]);
+  const [soldProperties, setSoldProperties] = useState<ScrapedProperty[]>([]);
+  const [activeTab, setActiveTab] = useState<"for-sale" | "sold">("for-sale");
+  const [error, setError] = useState<string | null>(null);
+
+  // Progress tracking
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
+
+  // Search parameters
+  const [minPrice, setMinPrice] = useState(400000);
+  const [maxPrice, setMaxPrice] = useState(3000000);
+  const [minYield, setMinYield] = useState(6);
+  const [keywords, setKeywords] = useState("flats,flat,units,conversion,block,investment,rental income,tenanted,multi,divided,converted,hmo,multiple");
+
+  useEffect(() => {
+    // Listen for progress updates from Rust backend
+    const unlisten = listen('search_progress', (event: any) => {
+      const { progress: progressValue, message } = event.payload;
+      setProgress(progressValue);
+      setProgressMessage(message);
+    });
+
+    return () => {
+      unlisten.then(fn => fn());
+    };
+  }, []);
+
+  async function findInvestmentProperties() {
+    setLoading(true);
+    setError(null);
+    setProgress(0);
+    setProgressMessage("Starting search...");
+    try {
+      const properties = await invoke<ScrapedProperty[]>("find_investment_properties", {
+        minPrice,
+        maxPrice,
+        minYield,
+        keywords: keywords.split(',').map(k => k.trim()).filter(k => k.length > 0)
+      });
+      setFoundProperties(properties);
+      console.log(`Found ${properties.length} potential investment properties`);
+    } catch (err) {
+      setError(`Failed to find properties: ${err}`);
+      console.error("Property search error:", err);
+    } finally {
+      setLoading(false);
+      setProgress(0);
+      setProgressMessage("");
+    }
+  }
+
+  async function findSoldProperties() {
+    setLoading(true);
+    setError(null);
+    setProgress(0);
+    setProgressMessage("Starting sold properties search...");
+    try {
+      const properties = await invoke<ScrapedProperty[]>("search_sold_properties", {
+        monthsBack: 24
+      });
+      setSoldProperties(properties);
+      console.log(`Found ${properties.length} sold properties for market analysis`);
+    } catch (err) {
+      setError(`Failed to find sold properties: ${err}`);
+      console.error("Sold property search error:", err);
+    } finally {
+      setLoading(false);
+      setProgress(0);
+      setProgressMessage("");
+    }
+  }
+
+  async function approveProperty(property: ScrapedProperty) {
+    // Convert scraped property to our property format
+    const newProperty = {
+      address: property.address,
+      price_gbp: property.price || null,
+      annual_rent_gbp: property.price ? (property.price * (property.estimated_yield || 6) / 100) : null,
+      listing_url: property.url,
+      selling_agent: property.agent,
+      property_type: "residential" as const,
+      ltv_pct: 75, // Default LTV
+      interest_rate_pct: 6, // Default interest rate
+      hold_period_years: 5, // Default hold period
+      rent_growth_pct: 2, // Default rent growth
+      value_growth_pct: 2, // Default value growth
+      fees_pct: 0.01, // Default fees
+    };
+
+    await onAddProperty(newProperty);
+
+    // Remove from found properties list
+    setFoundProperties(prev => prev.filter(p => p.url !== property.url));
+  }
+
+  function declineProperty(property: ScrapedProperty) {
+    // Simply remove from the list
+    setFoundProperties(prev => prev.filter(p => p.url !== property.url));
+  }
+
+  async function openListing(url: string) {
+    try {
+      await open(url);
+    } catch (err) {
+      console.error("Failed to open listing:", err);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div style={{ marginBottom: 16 }}>
+        <h3 style={{ margin: 0, marginBottom: 8 }}>🔍 Property Discovery</h3>
+        <p className="small muted" style={{ margin: 0 }}>
+          Find investment properties in London with customizable search criteria
+        </p>
+      </div>
+
+      {/* Search Parameters */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "1fr 1fr",
+        gap: 12,
+        marginBottom: 16,
+        background: "rgba(255,255,255,0.04)",
+        padding: 16,
+        borderRadius: 8
+      }}>
+        <div>
+          <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
+            Min Price (£)
+          </label>
+          <input
+            type="number"
+            value={minPrice}
+            onChange={(e) => setMinPrice(parseInt(e.target.value) || 0)}
+            style={{ width: "100%" }}
+          />
+        </div>
+
+        <div>
+          <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
+            Max Price (£)
+          </label>
+          <input
+            type="number"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(parseInt(e.target.value) || 0)}
+            style={{ width: "100%" }}
+          />
+        </div>
+
+        <div>
+          <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
+            Min Yield (%)
+          </label>
+          <input
+            type="number"
+            step="0.1"
+            value={minYield}
+            onChange={(e) => setMinYield(parseFloat(e.target.value) || 0)}
+            style={{ width: "100%" }}
+          />
+        </div>
+
+        <div style={{ gridColumn: "span 2" }}>
+          <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
+            Investment Keywords (comma-separated)
+          </label>
+          <input
+            type="text"
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="flats,conversion,block,investment,multi,hmo..."
+            style={{ width: "100%" }}
+          />
+          <p className="small muted" style={{ margin: "4px 0 0 0", fontSize: 10 }}>
+            Properties matching these keywords will be considered investment opportunities
+          </p>
+        </div>
+      </div>
+
+      <div className="row" style={{ marginBottom: 16, gap: 8 }}>
+        <div className="row" style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 2 }}>
+          <button
+            className={activeTab === "for-sale" ? "" : "secondary"}
+            onClick={() => setActiveTab("for-sale")}
+            style={{ fontSize: 12, padding: "6px 12px" }}
+          >
+            For Sale ({foundProperties.length})
+          </button>
+          <button
+            className={activeTab === "sold" ? "" : "secondary"}
+            onClick={() => setActiveTab("sold")}
+            style={{ fontSize: 12, padding: "6px 12px" }}
+          >
+            Market Data ({soldProperties.length})
+          </button>
+        </div>
+
+        {activeTab === "for-sale" ? (
+          <button
+            onClick={findInvestmentProperties}
+            disabled={loading}
+            style={{ background: loading ? "rgba(125,211,252,0.1)" : "rgba(125,211,252,0.14)" }}
+          >
+            {loading ? "Searching..." : "🏠 Find Properties"}
+          </button>
+        ) : (
+          <button
+            onClick={findSoldProperties}
+            disabled={loading}
+            style={{ background: loading ? "rgba(125,211,252,0.1)" : "rgba(125,211,252,0.14)" }}
+          >
+            {loading ? "Searching..." : "📊 Find Sold Data"}
+          </button>
+        )}
+      </div>
+
+      {loading && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span className="small" style={{ color: "var(--accent)" }}>
+              {progressMessage}
+            </span>
+            <span className="small" style={{ color: "var(--muted)" }}>
+              {Math.round(progress)}%
+            </span>
+          </div>
+          <div style={{
+            width: "100%",
+            height: 8,
+            background: "rgba(255,255,255,0.1)",
+            borderRadius: 4,
+            overflow: "hidden"
+          }}>
+            <div style={{
+              width: `${progress}%`,
+              height: "100%",
+              background: "linear-gradient(90deg, #3B82F6, #06B6D4)",
+              borderRadius: 4,
+              transition: "width 0.3s ease"
+            }} />
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          background: "rgba(239, 68, 68, 0.1)",
+          border: "1px solid rgba(239, 68, 68, 0.3)",
+          borderRadius: 8,
+          padding: 12,
+          marginBottom: 16,
+          color: "#EF4444"
+        }}>
+          {error}
+        </div>
+      )}
+
+      {activeTab === "for-sale" && foundProperties.length > 0 && (
+        <div>
+          <h4 style={{ margin: "0 0 12px 0", color: "var(--accent)" }}>
+            Found {foundProperties.length} Investment Properties
+          </h4>
+
+          <div style={{ display: "grid", gap: "12px" }}>
+            {foundProperties.map((property, index) => (
+              <div key={index} style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid var(--border)",
+                borderRadius: 12,
+                padding: 16
+              }}>
+                <div className="row between" style={{ marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                      {property.address}
+                    </div>
+                    <div className="small muted">
+                      {property.agent} • {property.property_type}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>
+                      {property.price ? fmtGBP(property.price) : "POA"}
+                    </div>
+                    {property.estimated_yield && (
+                      <div style={{
+                        color: property.estimated_yield >= 8 ? "#10B981" :
+                               property.estimated_yield >= 6 ? "#F59E0B" : "#EF4444",
+                        fontWeight: 600
+                      }}>
+                        ~{fmtPct(property.estimated_yield / 100)} yield
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {property.description && (
+                  <div className="small muted" style={{
+                    marginBottom: 12,
+                    maxHeight: 40,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis"
+                  }}>
+                    {property.description.slice(0, 150)}...
+                  </div>
+                )}
+
+                <div className="row between">
+                  <button
+                    className="linkButton"
+                    onClick={() => openListing(property.url)}
+                    style={{ fontSize: 12 }}
+                  >
+                    View Listing →
+                  </button>
+
+                  <div className="row" style={{ gap: 8 }}>
+                    <button
+                      className="danger"
+                      onClick={() => declineProperty(property)}
+                      style={{ fontSize: 12, padding: "6px 12px" }}
+                    >
+                      ✗ Pass
+                    </button>
+                    <button
+                      onClick={() => approveProperty(property)}
+                      style={{
+                        fontSize: 12,
+                        padding: "6px 12px",
+                        background: "rgba(16, 185, 129, 0.14)",
+                        borderColor: "rgba(16, 185, 129, 0.35)"
+                      }}
+                    >
+                      ✓ Add to Portfolio
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "sold" && soldProperties.length > 0 && (
+        <div>
+          <h4 style={{ margin: "0 0 12px 0", color: "var(--accent)" }}>
+            Market Analysis: {soldProperties.length} Recently Sold Properties
+          </h4>
+
+          <div style={{ overflowX: "auto" }}>
+            <table className="table" style={{ fontSize: 12 }}>
+              <thead>
+                <tr>
+                  <th>Address</th>
+                  <th>Sale Price</th>
+                  <th>Sale Date</th>
+                  <th>Agent</th>
+                  <th>Link</th>
+                </tr>
+              </thead>
+              <tbody>
+                {soldProperties.map((property, index) => (
+                  <tr key={index}>
+                    <td>{property.address}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      {property.price ? fmtGBP(property.price) : "Unknown"}
+                    </td>
+                    <td>{property.sale_date || "Recent"}</td>
+                    <td>{property.agent}</td>
+                    <td>
+                      <button
+                        className="linkButton"
+                        onClick={() => openListing(property.url)}
+                        style={{ fontSize: 11 }}
+                      >
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {!loading && foundProperties.length === 0 && soldProperties.length === 0 && (
+        <div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>
+          <div style={{ fontSize: 48, marginBottom: 12 }}>🏠</div>
+          <div>Click "Find Properties" to discover investment opportunities</div>
+          <div className="small" style={{ marginTop: 4 }}>
+            Searches London for freehold multi-flat properties with 6%+ estimated yield
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

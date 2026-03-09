@@ -1,10 +1,8 @@
 name: Release
-
 on:
   push:
     tags:
       - "v*"
-
 jobs:
   build:
     permissions:
@@ -17,19 +15,30 @@ jobs:
             args: ""
           - platform: macos-latest
             args: "--target universal-apple-darwin"
-
     runs-on: ${{ matrix.platform }}
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Import Apple certificate
+        if: matrix.platform == 'macos-latest'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          security create-keychain -p temp_password build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p temp_password build.keychain
+          security import certificate.p12 -k build.keychain \
+            -P $APPLE_CERTIFICATE_PASSWORD -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: -s -k temp_password build.keychain
 
       - name: Install dependencies
         run: npm ci
@@ -41,6 +50,10 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: v__VERSION__
           releaseName: "v__VERSION__"
@@ -54,39 +67,31 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-
     steps:
       - uses: actions/checkout@v4
         with:
           ref: gh-pages
-
       - name: Generate latest.json from GitHub release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
-
           RELEASE=$(gh release view "$TAG" --json assets --jq '.assets')
-
           # Find the .exe signature (Windows)
           WIN_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith("-setup.exe.sig")) | .url' | head -1)
           WIN_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith("-setup.exe")) | select(.name | endswith(".sig") | not) | .url' | head -1)
-
           # Find the .app.tar.gz signature (macOS)
           MAC_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".app.tar.gz.sig")) | .url' | head -1)
           MAC_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".app.tar.gz")) | select(.name | endswith(".sig") | not) | .url' | head -1)
-
           WIN_SIG=""
           if [ -n "$WIN_SIG_URL" ] && [ "$WIN_SIG_URL" != "null" ]; then
             WIN_SIG=$(curl -sL "$WIN_SIG_URL")
           fi
-
           MAC_SIG=""
           if [ -n "$MAC_SIG_URL" ] && [ "$MAC_SIG_URL" != "null" ]; then
             MAC_SIG=$(curl -sL "$MAC_SIG_URL")
           fi
-
           cat > latest.json << ENDJSON
           {
             "version": "$VERSION",
@@ -104,7 +109,6 @@ jobs:
             }
           }
           ENDJSON
-
       - name: Commit and push latest.json
         run: |
           git config user.name "github-actions[bot]"

@@ -3,8 +3,10 @@ import { open } from "@tauri-apps/plugin-shell";
 import { check } from "@tauri-apps/plugin-updater";
 import { supabase } from "../lib/supabase";
 import { PropertyRow, ProfileRow } from "../lib/types";
-import { calcGrossIrr, calcNetYield, fmtGBP, fmtPct } from "../lib/finance";
+import { calcGrossIrr, calcNetYield, calcTotalReturnOnEquity, fmtGBP, fmtPct } from "../lib/finance";
 import { PropertyModal } from "./PropertyModal";
+import { PropertyMap } from "./PropertyMap";
+import { PropertyFinder } from "./PropertyFinder";
 
 type SortKey =
   | "updated_at"
@@ -36,6 +38,7 @@ export function App() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"table" | "map" | "finder">("table");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -225,18 +228,12 @@ export function App() {
       )}
       <div className="row between" style={{ marginBottom: 14 }}>
         <div>
-          <h1>grnbck Properties <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v0.2.5</span></h1>
-          <div className="small">
-            {profile ? (
-              <>
-                Org: <code>{profile.org_id}</code>
-              </>
-            ) : (
-              <>
-                No org profile yet — ask admin to add you to <code>profiles</code>.
-              </>
-            )}
-          </div>
+          <h1>grnbck London <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v1.0.0</span></h1>
+          {!profile && (
+            <div className="small">
+              No org profile yet — ask admin to add you to <code>profiles</code>.
+            </div>
+          )}
         </div>
         <div className="row">
           <button className="secondary" onClick={() => loadProfileAndProperties()}>
@@ -251,26 +248,54 @@ export function App() {
       <div className="card">
         <div className="row between">
           <div className="row">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search address, borough, agent..."
-              style={{ width: 320, maxWidth: "70vw" }}
-            />
+            <div className="row" style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 2 }}>
+              <button
+                className={viewMode === "table" ? "" : "secondary"}
+                onClick={() => setViewMode("table")}
+                style={{ fontSize: 12, padding: "6px 12px" }}
+              >
+                Portfolio
+              </button>
+              <button
+                className={viewMode === "map" ? "" : "secondary"}
+                onClick={() => setViewMode("map")}
+                style={{ fontSize: 12, padding: "6px 12px" }}
+              >
+                Map
+              </button>
+              <button
+                className={viewMode === "finder" ? "" : "secondary"}
+                onClick={() => setViewMode("finder")}
+                style={{ fontSize: 12, padding: "6px 12px" }}
+              >
+                🔍 Finder
+              </button>
+            </div>
 
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
-              <option value="updated_at">Sort: Last updated</option>
-              <option value="address">Sort: Address</option>
-              <option value="borough">Sort: Borough</option>
-              <option value="price_gbp">Sort: Price</option>
-              <option value="annual_rent_gbp">Sort: Rent</option>
-              <option value="ltv_pct">Sort: LTV</option>
-              <option value="interest_rate_pct">Sort: Interest rate</option>
-            </select>
+            {viewMode === "table" && (
+              <>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search address, borough, agent..."
+                  style={{ width: 280, maxWidth: "50vw" }}
+                />
 
-            <button className="secondary" onClick={() => setSortDesc((d) => !d)}>
-              {sortDesc ? "Desc" : "Asc"}
-            </button>
+                <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
+                  <option value="updated_at">Sort: Last updated</option>
+                  <option value="address">Sort: Address</option>
+                  <option value="borough">Sort: Borough</option>
+                  <option value="price_gbp">Sort: Price</option>
+                  <option value="annual_rent_gbp">Sort: Rent</option>
+                  <option value="ltv_pct">Sort: LTV</option>
+                  <option value="interest_rate_pct">Sort: Interest rate</option>
+                </select>
+
+                <button className="secondary" onClick={() => setSortDesc((d) => !d)}>
+                  {sortDesc ? "Desc" : "Asc"}
+                </button>
+              </>
+            )}
           </div>
 
           <button onClick={() => setCreating(true)} disabled={!profile}>
@@ -288,6 +313,14 @@ export function App() {
           <p className="muted" style={{ marginTop: 12 }}>
             Loading…
           </p>
+        ) : viewMode === "map" ? (
+          <div style={{ marginTop: 12 }}>
+            <PropertyMap properties={filtered} />
+          </div>
+        ) : viewMode === "finder" ? (
+          <div style={{ marginTop: 12 }}>
+            <PropertyFinder onAddProperty={upsertProperty} />
+          </div>
         ) : (
           <div style={{ overflowX: "auto", marginTop: 12 }}>
             <table className="table">
@@ -295,7 +328,7 @@ export function App() {
                 <tr>
                   <th>Address</th>
                   <th>Borough / Area</th>
-                  <th>Gross IRR</th>
+                  <th>ROE</th>
                   <th>Yield</th>
                   <th>Price</th>
                   <th>Annual rent</th>
@@ -339,6 +372,18 @@ export function App() {
                     valueGrowthPct: p.value_growth_pct,
                   });
 
+                  const totalReturnOnEquity = calcTotalReturnOnEquity({
+                    price,
+                    fees,
+                    stampDuty,
+                    annualRent: p.annual_rent_gbp,
+                    sqm: p.sqm,
+                    opexPerSqm: p.opex_per_sqm_gbp_per_year,
+                    ltvPct: p.ltv_pct,
+                    interestRatePct: p.interest_rate_pct,
+                    valueGrowthPct: p.value_growth_pct,
+                  });
+
                   const opexTotal =
                     p.sqm != null && p.opex_per_sqm_gbp_per_year != null
                       ? p.sqm * p.opex_per_sqm_gbp_per_year
@@ -360,7 +405,7 @@ export function App() {
                           <div className="small">{p.area ?? ""}</div>
                         </td>
 
-                        <td style={{ fontWeight: 700 }}>{fmtPct(grossIrr)}</td>
+                        <td style={{ fontWeight: 700 }}>{fmtPct(totalReturnOnEquity)}</td>
                         <td style={{ fontWeight: 700 }}>{fmtPct(yieldPct)}</td>
                         <td>{fmtGBP(price)}</td>
                         <td>{fmtGBP(p.annual_rent_gbp)}</td>
@@ -472,6 +517,10 @@ export function App() {
                               <div>
                                 <strong>Value growth:</strong>{" "}
                                 {p.value_growth_pct != null ? `${p.value_growth_pct}%` : ""}
+                              </div>
+
+                              <div>
+                                <strong>Gross IRR:</strong> {fmtPct(grossIrr)}
                               </div>
 
                               <div>

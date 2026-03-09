@@ -1,6 +1,22 @@
 import React, { useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { PropertyRow } from "../lib/types";
-import { calcNetYield, fmtGBP, fmtPct, calcStampDuty, calcGrossIrr } from "../lib/finance";
+import { calcNetYield, fmtGBP, fmtPct, calcStampDuty, calcGrossIrr, calcTotalReturnOnEquity } from "../lib/finance";
+
+interface ScrapedProperty {
+  url: string;
+  address: string;
+  price?: number;
+  property_type: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  agent: string;
+  description: string;
+  tenure?: string;
+  size_sqft?: number;
+  estimated_yield?: number;
+  sale_date?: string;
+}
 
 type Props = {
   title: string;
@@ -18,6 +34,7 @@ function numOrNull(v: string): number | null {
 
 export function PropertyModal({ title, initial, onClose, onSave }: Props) {
   const [saving, setSaving] = useState(false);
+  const [scraping, setScraping] = useState(false);
 
   // Basic info
   const [address, setAddress] = useState(initial?.address ?? "");
@@ -109,6 +126,79 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
     valueGrowthPct,
   ]);
 
+  const roeCalculated = useMemo(() => {
+    return calcTotalReturnOnEquity({
+      price: priceNum,
+      fees: feesGbp,
+      stampDuty: stampDutyGbp,
+      annualRent: numOrNull(annualRent),
+      sqm: numOrNull(sqm),
+      opexPerSqm: numOrNull(opexPerSqm),
+      ltvPct: numOrNull(ltvPct),
+      interestRatePct: numOrNull(interestRatePct),
+      valueGrowthPct: numOrNull(valueGrowthPct),
+    });
+  }, [
+    priceNum,
+    feesGbp,
+    stampDutyGbp,
+    annualRent,
+    sqm,
+    opexPerSqm,
+    ltvPct,
+    interestRatePct,
+    valueGrowthPct,
+  ]);
+
+  async function autoScrapeProperty(url: string) {
+    if (!url.trim() || scraping) return;
+
+    // Basic validation for Rightmove URLs
+    if (!url.includes("rightmove.co.uk") && !url.includes("property")) {
+      return; // Only scrape property URLs
+    }
+
+    setScraping(true);
+    try {
+      console.log("Auto-scraping property from URL:", url);
+      const scrapedProperty = await invoke<ScrapedProperty>("scrape_property_url", { url: url.trim() });
+
+      // Auto-fill form fields with scraped data
+      if (scrapedProperty.address && !address.trim()) {
+        setAddress(scrapedProperty.address);
+      }
+
+      if (scrapedProperty.agent && !sellingAgent.trim()) {
+        setSellingAgent(scrapedProperty.agent);
+      }
+
+      if (scrapedProperty.price && !price.trim()) {
+        setPrice(scrapedProperty.price.toString());
+      }
+
+      // Convert sq ft to m² for size
+      if (scrapedProperty.size_sqft && !sqm.trim()) {
+        const sqmValue = Math.round(scrapedProperty.size_sqft / 10.764); // Convert sq ft to m²
+        setSqm(sqmValue.toString());
+      }
+
+      // Set property type based on scraped data
+      if (scrapedProperty.property_type.toLowerCase().includes("house") && propertyType === "residential") {
+        // Keep as residential for houses
+      } else if (scrapedProperty.property_type.toLowerCase().includes("commercial") ||
+                 scrapedProperty.property_type.toLowerCase().includes("mixed")) {
+        setPropertyType("mixed_use");
+      }
+
+      console.log("Successfully auto-filled property details from:", scrapedProperty.address);
+    } catch (error) {
+      console.error("Failed to auto-scrape property:", error);
+      // Don't show error to user for auto-scraping, just log it
+    } finally {
+      setScraping(false);
+    }
+  }
+
   async function submit() {
     if (!address.trim()) {
       alert("Address is required.");
@@ -171,8 +261,36 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
           </div>
 
           <div className="field">
-            <label>Listing URL</label>
-            <input value={listingUrl} onChange={(e) => setListingUrl(e.target.value)} placeholder="https://..." />
+            <label>Listing URL {scraping && <span style={{ color: "var(--accent)", fontSize: 12 }}>(auto-filling...)</span>}</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input
+                value={listingUrl}
+                onChange={(e) => setListingUrl(e.target.value)}
+                onBlur={(e) => autoScrapeProperty(e.target.value)}
+                placeholder="https://www.rightmove.co.uk/properties/..."
+                disabled={scraping}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={() => autoScrapeProperty(listingUrl)}
+                disabled={scraping || !listingUrl.trim()}
+                style={{
+                  fontSize: 12,
+                  padding: "6px 12px",
+                  background: "rgba(125,211,252,0.14)",
+                  borderColor: "rgba(125,211,252,0.35)",
+                  whiteSpace: "nowrap"
+                }}
+              >
+                {scraping ? "..." : "📥 Extract"}
+              </button>
+            </div>
+            {scraping && (
+              <div className="small" style={{ color: "var(--accent)", marginTop: 4 }}>
+                🔍 Extracting property details...
+              </div>
+            )}
           </div>
 
           <div className="field">
@@ -262,6 +380,11 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
           <div className="field">
             <label>Gross IRR (calc)</label>
             <input value={fmtPct(grossIrr)} readOnly />
+          </div>
+
+          <div className="field">
+            <label>ROE (calc)</label>
+            <input value={fmtPct(roeCalculated)} readOnly />
           </div>
         </div>
 

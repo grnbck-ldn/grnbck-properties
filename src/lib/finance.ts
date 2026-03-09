@@ -186,3 +186,59 @@ export function calcGrossIrr(args: {
 
   return irr(cashFlows);
 }
+
+export function calcTotalReturnOnEquity(args: {
+  price: number | null;
+  fees: number | null;
+  stampDuty: number | null;
+  annualRent: number | null;
+  sqm: number | null;
+  opexPerSqm: number | null;
+  ltvPct: number | null;
+  interestRatePct: number | null;
+  valueGrowthPct: number | null;
+}): number | null {
+  const {
+    price,
+    fees,
+    stampDuty,
+    annualRent,
+    sqm,
+    opexPerSqm,
+    ltvPct,
+    interestRatePct,
+    valueGrowthPct,
+  } = args;
+
+  if (price == null || annualRent == null) return null;
+  if (!Number.isFinite(price) || !Number.isFinite(annualRent)) return null;
+  if (price <= 0 || annualRent < 0) return null;
+
+  const ltv = (ltvPct ?? 0) / 100;
+  const interestRate = (interestRatePct ?? 0) / 100;
+  const growthRate = (valueGrowthPct ?? 0) / 100;
+
+  // Calculate total investment and equity
+  const totalInvestment = price + (fees ?? 0) + (stampDuty ?? 0);
+  const debt = price * ltv;
+  const equity = totalInvestment - debt;
+
+  if (equity <= 0) return null;
+
+  // Calculate NOI (Net Operating Income)
+  const opex = sqm != null && opexPerSqm != null && Number.isFinite(sqm) && Number.isFinite(opexPerSqm)
+    ? sqm * opexPerSqm
+    : 0;
+  const noi = annualRent - opex;
+
+  // Calculate yield on equity (cash flow after interest)
+  const interestPayment = debt * interestRate;
+  const netCashFlow = noi - interestPayment;
+  const yieldOnEquity = netCashFlow / equity;
+
+  // Calculate growth return on equity
+  const propertyGrowthReturn = (price * growthRate) / equity;
+
+  // Total return on equity = yield on equity + growth return
+  return yieldOnEquity + propertyGrowthReturn;
+}

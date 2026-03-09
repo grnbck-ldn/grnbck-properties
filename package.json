@@ -1,7 +1,7 @@
 {
   "name": "grnbck-properties",
   "private": true,
-  "version": "0.2.5",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,14 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-shell": "^2.3.5",
     "@tauri-apps/plugin-updater": "^2.10.0",
+    "@types/leaflet": "^1.9.21",
+    "leaflet": "^1.9.4",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",

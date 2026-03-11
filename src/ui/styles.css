@@ -113,6 +113,9 @@ h1,h2,h3 { margin: 0; }
 
 .modal {
   width: min(900px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  resize: both;
   background: #0b1220;
   border: 1px solid var(--border);
   border-radius: 18px;

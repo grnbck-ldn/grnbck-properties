@@ -8,6 +8,7 @@ import { PropertyModal } from "./PropertyModal";
 import { PropertyMap } from "./PropertyMap";
 import { PropertyFinder } from "./PropertyFinder";
 
+
 type SortKey =
   | "updated_at"
   | "address"
@@ -268,7 +269,7 @@ export function App() {
                 onClick={() => setViewMode("finder")}
                 style={{ fontSize: 12, padding: "6px 12px" }}
               >
-                🔍 Finder
+                Finder
               </button>
             </div>
 
@@ -319,7 +320,10 @@ export function App() {
           </div>
         ) : viewMode === "finder" ? (
           <div style={{ marginTop: 12 }}>
-            <PropertyFinder onAddProperty={upsertProperty} />
+            <PropertyFinder
+              onAddProperty={upsertProperty}
+              existingUrls={new Set(properties.map(p => p.listing_url).filter(Boolean) as string[])}
+            />
           </div>
         ) : (
           <div style={{ overflowX: "auto", marginTop: 12 }}>

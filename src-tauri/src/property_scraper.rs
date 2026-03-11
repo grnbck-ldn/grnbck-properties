@@ -52,7 +52,7 @@ impl RightmoveScraper {
     }
 
     pub async fn search_london_properties(&self, params: &PropertySearchParams, keywords: &[String], app: &tauri::AppHandle) -> Result<Vec<ScrapedProperty>> {
-        // First, visit the main Rightmove page to establish a session
+        // Establish session
         println!("Establishing session with Rightmove...");
         let _ = self.client
             .get("https://www.rightmove.co.uk")
@@ -61,79 +61,73 @@ impl RightmoveScraper {
             .send()
             .await?;
 
-        // Small delay to mimic human behavior
         let delay_ms = {
             let mut rng = rand::thread_rng();
             rng.gen_range(1000..3000)
         };
         sleep(Duration::from_millis(delay_ms)).await;
 
-        let search_url = self.build_search_url(params)?;
-        println!("Starting property search: {}", search_url);
+        let base_url = self.build_search_url(params)?;
 
+        // Search for each keyword separately using Rightmove's keywords param
+        // This lets Rightmove filter server-side for relevant listings
+        let mut seen_urls = std::collections::HashSet::new();
         let mut all_properties = Vec::new();
-        let mut page = 0;
-        let max_pages = 5; // Limit to prevent excessive scraping
+        let total_keywords = keywords.len().max(1);
 
-        loop {
-            if page >= max_pages {
-                break;
-            }
+        for (ki, keyword) in keywords.iter().enumerate() {
+            let keyword = keyword.trim();
+            if keyword.is_empty() { continue; }
 
-            // Emit progress update
-            let progress = 20 + (50 * page / max_pages); // 20-70% for scraping pages
+            let encoded_keyword = keyword.replace(' ', "+");
+            let search_url = format!("{}&keywords={}", base_url, encoded_keyword);
+            println!("Searching keyword '{}': {}", keyword, search_url);
+
+            let progress = 10 + (70 * ki / total_keywords);
             let _ = app.emit("search_progress", serde_json::json!({
                 "progress": progress,
-                "message": format!("Scraping page {} of {}...", page + 1, max_pages)
+                "message": format!("Searching '{}'... ({}/{})", keyword, ki + 1, total_keywords)
             }));
 
-            let page_url = format!("{}&index={}", search_url, page * 24);
+            // Only fetch page 1 per keyword to keep it fast
+            let page_url = format!("{}&index=0", search_url);
 
             match self.scrape_search_results_page(&page_url).await {
                 Ok(properties) => {
-                    println!("Found {} properties on page {}", properties.len(), page + 1);
-
-                    if properties.is_empty() {
-                        println!("No properties found on page {}, stopping search", page + 1);
-                        break; // No more properties
+                    println!("Found {} properties for keyword '{}'", properties.len(), keyword);
+                    for p in properties {
+                        if seen_urls.insert(p.url.clone()) {
+                            all_properties.push(p);
+                        }
                     }
-
-                    all_properties.extend(properties);
                 },
                 Err(e) => {
-                    println!("Error scraping page {}: {}", page + 1, e);
-                    // Continue to next page instead of failing completely
+                    println!("Error searching keyword '{}': {}", keyword, e);
                 }
             }
 
-            // Random delay between 3-8 seconds to look more human
+            // Delay between keyword searches
             let delay_secs = {
                 let mut rng = rand::thread_rng();
-                rng.gen_range(3..=8)
+                rng.gen_range(2..=5)
             };
-            println!("Waiting {} seconds before next page...", delay_secs);
             sleep(Duration::from_secs(delay_secs)).await;
-            page += 1;
         }
 
-        // Filter properties that match investment keywords
-        let filtered: Vec<ScrapedProperty> = all_properties.into_iter()
-            .filter(|p| self.matches_investment_keywords(&p.description, keywords))
-            .collect();
-
-        Ok(filtered)
+        println!("Total unique properties found: {}", all_properties.len());
+        Ok(all_properties)
     }
 
     fn build_search_url(&self, params: &PropertySearchParams) -> Result<String> {
         let mut url = Url::parse("https://www.rightmove.co.uk/property-for-sale/find.html")?;
 
-        // London location ID (this is Rightmove's ID for Greater London)
-        url.query_pairs_mut().append_pair("locationIdentifier", "REGION^876");
+        // REGION^87490 = Greater London (inside M25)
+        url.query_pairs_mut().append_pair("locationIdentifier", "REGION^87490");
+        url.query_pairs_mut().append_pair("numberOfPropertiesPerPage", "24");
+        url.query_pairs_mut().append_pair("radius", "0.0");
+        url.query_pairs_mut().append_pair("sortType", "2");
+        url.query_pairs_mut().append_pair("viewType", "LIST");
 
-        // Property types - focus on flats and houses that could be multi-flat
-        url.query_pairs_mut().append_pair("propertyTypes", "flat,house");
-
-        // Price range
         if let Some(min_price) = params.min_price {
             url.query_pairs_mut().append_pair("minPrice", &min_price.to_string());
         }
@@ -141,38 +135,20 @@ impl RightmoveScraper {
             url.query_pairs_mut().append_pair("maxPrice", &max_price.to_string());
         }
 
-        // Minimum bedrooms (multi-flat properties usually have more bedrooms)
         if let Some(min_beds) = params.min_bedrooms {
             url.query_pairs_mut().append_pair("minBedrooms", &min_beds.to_string());
-        }
-
-        // Include sold properties if requested
-        if params.include_sold {
-            // Switch to sold property search
-            let mut sold_url = Url::parse("https://www.rightmove.co.uk/house-prices/search.html")?;
-            sold_url.query_pairs_mut().append_pair("locationIdentifier", "REGION^876");
-            sold_url.query_pairs_mut().append_pair("propertyTypes", "flat,house");
-
-            if let Some(min_price) = params.min_price {
-                sold_url.query_pairs_mut().append_pair("minPrice", &min_price.to_string());
-            }
-            if let Some(max_price) = params.max_price {
-                sold_url.query_pairs_mut().append_pair("maxPrice", &max_price.to_string());
-            }
-
-            return Ok(sold_url.to_string());
         }
 
         Ok(url.to_string())
     }
 
     async fn scrape_search_results_page(&self, url: &str) -> Result<Vec<ScrapedProperty>> {
-        println!("Fetching: {}", url);
+        println!("Fetching search page: {}", url);
 
         let response = self.client
             .get(url)
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8")
-            .header("Accept-Language", "en-GB,en;q=0.9,en-US;q=0.8")
+            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8")
+            .header("Accept-Language", "en-GB,en;q=0.9")
             .header("DNT", "1")
             .header("Connection", "keep-alive")
             .header("Upgrade-Insecure-Requests", "1")
@@ -183,168 +159,352 @@ impl RightmoveScraper {
             .send()
             .await?;
 
-        println!("Response status: {}", response.status());
+        let status = response.status();
+        println!("Search page response status: {}", status);
 
-        if !response.status().is_success() {
-            return Err(anyhow::anyhow!("HTTP request failed with status: {}", response.status()));
+        if !status.is_success() {
+            return Err(anyhow::anyhow!("Search page request failed: {}", status));
         }
 
         let html = response.text().await?;
-        println!("Page content length: {} characters", html.len());
-        let document = Html::parse_document(&html);
+        println!("Search page HTML length: {} chars", html.len());
 
-        // Try multiple possible selectors for Rightmove properties
-        let property_selectors = vec![
-            ".l-searchResult",
-            ".l-searchResults .propertyCard",
-            "[data-test='property-card']",
-            ".propertyCard-wrapper",
-            ".propertyCard"
-        ];
-
-        let mut properties = Vec::new();
-        let mut found_selector = None;
-
-        for selector_str in &property_selectors {
-            if let Ok(selector) = Selector::parse(selector_str) {
-                let elements: Vec<_> = document.select(&selector).collect();
-                if !elements.is_empty() {
-                    println!("Found {} properties using selector: {}", elements.len(), selector_str);
-                    found_selector = Some(selector_str);
-
-                    for element in elements {
-                        if let Ok(property) = self.extract_property_from_element(&element) {
-                            properties.push(property);
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-
-        if found_selector.is_none() {
-            println!("No properties found with any selector. Page might be blocked or structure changed.");
-            // Safe string truncation that respects UTF-8 boundaries
-            let preview_len = html.len().min(500);
-            let safe_preview = if html.is_char_boundary(preview_len) {
-                &html[..preview_len]
-            } else {
-                // Find the nearest char boundary before 500
-                let mut safe_len = preview_len;
-                while safe_len > 0 && !html.is_char_boundary(safe_len) {
-                    safe_len -= 1;
-                }
-                &html[..safe_len]
-            };
-            println!("Page content preview: {}", safe_preview);
-        }
-
-        Ok(properties)
+        self.extract_properties_from_html(&html)
     }
 
-    fn extract_property_from_element(&self, element: &scraper::ElementRef<'_>) -> Result<ScrapedProperty> {
-        // Try multiple selectors for each field to handle different Rightmove layouts
-        let address_selectors = vec![
-            ".propertyCard-address",
-            "[data-test='property-address']",
-            ".propertyCard-details h2",
-            "h2 a"
-        ];
+    /// Extract properties from HTML content — tries multiple extraction strategies
+    fn extract_properties_from_html(&self, html: &str) -> Result<Vec<ScrapedProperty>> {
+        println!("Trying to extract properties from HTML ({} chars)", html.len());
 
-        let price_selectors = vec![
-            ".propertyCard-priceValue",
-            "[data-test='property-price']",
-            ".propertyCard-price .price",
-            ".price"
-        ];
-
-        let agent_selectors = vec![
-            ".propertyCard-contactsItem-company",
-            "[data-test='agent-name']",
-            ".propertyCard-branchSummary-branchName"
-        ];
-
-        let link_selectors = vec![
-            "a.propertyCard-link",
-            "a[data-test='property-details']",
-            "h2 a",
-            "a"
-        ];
-
-        // Helper function to try multiple selectors
-        let try_selectors = |selectors: &[&str], element: &scraper::ElementRef| -> String {
-            for selector_str in selectors {
-                if let Ok(selector) = Selector::parse(selector_str) {
-                    if let Some(el) = element.select(&selector).next() {
-                        let text = el.text().collect::<String>().trim().to_string();
-                        if !text.is_empty() {
-                            return text;
-                        }
-                    }
-                }
+        // Strategy 1: PAGE_MODEL
+        if let Some(properties) = self.extract_search_results_from_page_model(html) {
+            if !properties.is_empty() {
+                println!("Found {} properties from PAGE_MODEL", properties.len());
+                return Ok(properties);
             }
-            String::new()
-        };
-
-        let try_link_selectors = |selectors: &[&str], element: &scraper::ElementRef| -> String {
-            for selector_str in selectors {
-                if let Ok(selector) = Selector::parse(selector_str) {
-                    if let Some(el) = element.select(&selector).next() {
-                        if let Some(href) = el.value().attr("href") {
-                            return href.to_string();
-                        }
-                    }
-                }
-            }
-            String::new()
-        };
-
-        let address = try_selectors(&address_selectors, element);
-        let price_text = try_selectors(&price_selectors, element);
-        let agent = try_selectors(&agent_selectors, element);
-        let relative_url = try_link_selectors(&link_selectors, element);
-
-        let price = self.parse_price(&price_text);
-
-        // Ensure we have at least an address to make this a valid property
-        if address.is_empty() {
-            return Err(anyhow::anyhow!("No address found for property"));
         }
 
-        let full_url = if relative_url.starts_with("http") {
-            relative_url
-        } else if relative_url.starts_with("/") {
-            format!("https://www.rightmove.co.uk{}", relative_url)
-        } else if !relative_url.is_empty() {
-            format!("https://www.rightmove.co.uk/{}", relative_url)
-        } else {
-            String::new()
-        };
+        // Strategy 2: Find any JSON object containing a "properties" array
+        // Rightmove embeds data in various script tags
+        if let Some(properties) = self.extract_properties_from_script_tags(html) {
+            if !properties.is_empty() {
+                println!("Found {} properties from script tags", properties.len());
+                return Ok(properties);
+            }
+        }
 
-        // Try to extract description from the property card
-        let description_selectors = vec![
-            ".propertyCard-description",
-            ".propertyCard-summary",
-            "[data-test='property-description']"
-        ];
-        let description = try_selectors(&description_selectors, element);
+        println!("No properties found in HTML");
+        Ok(Vec::new())
+    }
 
-        println!("Extracted property: {} - {} - {}", address, price_text, agent);
+    /// Search through all <script> tags for JSON containing property data
+    fn extract_properties_from_script_tags(&self, html: &str) -> Option<Vec<ScrapedProperty>> {
+        // Look for any script content that contains "properties" array with "displayAddress"
+        // Try various window.* assignments
+        for marker in &[
+            "window.jsonModel = ",
+            "window.PAGE_MODEL = ",
+            "window.__NEXT_DATA__ = ",
+        ] {
+            if let Some(start) = html.find(marker) {
+                let json_start = start + marker.len();
+                let rest = &html[json_start..];
 
-        Ok(ScrapedProperty {
-            url: full_url,
-            address: self.clean_html(&address),
-            price,
-            property_type: "Property".to_string(),
-            bedrooms: None,
-            bathrooms: None,
-            agent: self.clean_html(&agent),
-            description: self.clean_html(&description),
-            tenure: None,
-            size_sqft: None,
-            estimated_yield: None,
-            sale_date: None,
-        })
+                // Use brace-matching to find the JSON boundary
+                let mut depth = 0i32;
+                let mut json_end = 0;
+                for (i, ch) in rest.char_indices() {
+                    match ch {
+                        '{' => depth += 1,
+                        '}' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                json_end = i + 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                if json_end == 0 { continue; }
+
+                let json_str = &rest[..json_end];
+                println!("Found {} marker, JSON size: {} chars", marker.trim(), json_str.len());
+
+                if let Ok(model) = serde_json::from_str::<serde_json::Value>(json_str) {
+                    // Print top-level keys for debugging
+                    if let Some(obj) = model.as_object() {
+                        let keys: Vec<&String> = obj.keys().collect();
+                        println!("Top-level keys: {:?}", keys);
+                    }
+
+                    // Try to find properties at various paths
+                    let props_value = model.get("properties")
+                        .or_else(|| model.get("searchResults").and_then(|sr| sr.get("properties")))
+                        .or_else(|| model.get("props").and_then(|p| p.get("pageProps")).and_then(|pp| pp.get("properties")));
+
+                    if let Some(arr) = props_value.and_then(|v| v.as_array()) {
+                        println!("Found properties array with {} items", arr.len());
+                        let results = self.parse_properties_array(arr);
+                        if !results.is_empty() {
+                            return Some(results);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Last resort: find "properties":[{...}] arrays directly in HTML
+        // This handles bundled JS where the data isn't in a clean JSON object
+        let mut search_from = 0;
+        while let Some(pos) = html[search_from..].find("\"properties\":[{") {
+            let abs_pos = search_from + pos;
+            // Find the start of the array (skip past "properties":)
+            let arr_start = abs_pos + "\"properties\":".len();
+            let rest = &html[arr_start..];
+
+            // Bracket-match to find the end of the array
+            let mut depth = 0i32;
+            let mut arr_end = 0;
+            let mut in_string = false;
+            let mut escape_next = false;
+            for (i, ch) in rest.char_indices() {
+                if escape_next {
+                    escape_next = false;
+                    continue;
+                }
+                if ch == '\\' && in_string {
+                    escape_next = true;
+                    continue;
+                }
+                if ch == '"' {
+                    in_string = !in_string;
+                    continue;
+                }
+                if in_string { continue; }
+                match ch {
+                    '[' => depth += 1,
+                    ']' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            arr_end = i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if arr_end > 0 {
+                let arr_str = &rest[..arr_end];
+                println!("Found properties array at pos {}, length {} chars", abs_pos, arr_str.len());
+
+                if let Ok(arr) = serde_json::from_str::<Vec<serde_json::Value>>(arr_str) {
+                    println!("Parsed properties array: {} items", arr.len());
+                    // Check if first item has displayAddress
+                    if arr.first().map_or(false, |item| item.get("displayAddress").is_some()) {
+                        let results = self.parse_properties_array(&arr);
+                        if !results.is_empty() {
+                            println!("Extracted {} properties from inline array", results.len());
+                            return Some(results);
+                        }
+                    }
+                } else {
+                    println!("Failed to parse properties array JSON");
+                }
+            }
+
+            search_from = abs_pos + 1;
+        }
+
+        None
+    }
+
+    /// Parse an array of property JSON objects into ScrapedProperty structs
+    fn parse_properties_array(&self, properties: &[serde_json::Value]) -> Vec<ScrapedProperty> {
+        let mut results = Vec::new();
+        for prop in properties {
+            let address = prop.get("displayAddress")
+                .or_else(|| prop.get("address").and_then(|a| a.get("displayAddress")))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            if address.is_empty() { continue; }
+
+            let price = prop.get("price")
+                .and_then(|p| {
+                    p.get("amount").and_then(|v| v.as_u64())
+                        .or_else(|| p.get("amount").and_then(|v| v.as_str()).and_then(|s| self.parse_price(s)))
+                        .or_else(|| {
+                            p.get("displayPrices")
+                                .and_then(|d| d.as_array())
+                                .and_then(|a| a.first())
+                                .and_then(|dp| dp.get("displayPrice"))
+                                .and_then(|v| v.as_str())
+                                .and_then(|s| self.parse_price(s))
+                        })
+                });
+
+            let property_type = prop.get("propertySubType")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Property")
+                .to_string();
+
+            let bedrooms = prop.get("bedrooms")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u8);
+
+            let bathrooms = prop.get("bathrooms")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u8);
+
+            let agent = prop.get("customer")
+                .and_then(|c| c.get("branchDisplayName"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let description = prop.get("summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let property_url = prop.get("propertyUrl")
+                .and_then(|v| v.as_str())
+                .map(|u| {
+                    if u.starts_with("http") { u.to_string() }
+                    else { format!("https://www.rightmove.co.uk{}", u) }
+                })
+                .or_else(|| {
+                    prop.get("id")
+                        .and_then(|v| v.as_u64())
+                        .map(|id| format!("https://www.rightmove.co.uk/properties/{}", id))
+                })
+                .unwrap_or_default();
+
+            results.push(ScrapedProperty {
+                url: property_url,
+                address,
+                price,
+                property_type,
+                bedrooms,
+                bathrooms,
+                agent,
+                description: self.clean_html(&description),
+                tenure: None,
+                size_sqft: None,
+                estimated_yield: None,
+                sale_date: None,
+            });
+        }
+        results
+    }
+
+    fn extract_search_results_from_page_model(&self, html: &str) -> Option<Vec<ScrapedProperty>> {
+        let marker = "window.PAGE_MODEL = ";
+        let start = html.find(marker)?;
+        let json_start = start + marker.len();
+
+        let rest = &html[json_start..];
+        let mut depth = 0i32;
+        let mut json_end = 0;
+        for (i, ch) in rest.char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        json_end = i + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if json_end == 0 { return None; }
+        let json_str = &rest[..json_end];
+
+        let model: serde_json::Value = serde_json::from_str(json_str).ok()?;
+
+        let properties_array = model.get("properties").and_then(|v| v.as_array())?;
+
+        let mut results = Vec::new();
+        for prop in properties_array {
+            let address = prop.get("displayAddress")
+                .or_else(|| prop.get("propertyCard").and_then(|c| c.get("displayAddress")))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            if address.is_empty() {
+                continue;
+            }
+
+            let price_str = prop.get("price")
+                .and_then(|p| p.get("displayPrices").and_then(|d| d.as_array()).and_then(|a| a.first()))
+                .and_then(|p| p.get("displayPrice"))
+                .and_then(|v| v.as_str())
+                .or_else(|| prop.get("price").and_then(|p| p.get("amount")).and_then(|v| v.as_str()))
+                .unwrap_or("");
+            let price = self.parse_price(price_str)
+                .or_else(|| prop.get("price").and_then(|p| p.get("amount")).and_then(|v| v.as_u64()));
+
+            let property_type = prop.get("propertySubType")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Property")
+                .to_string();
+
+            let bedrooms = prop.get("bedrooms")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u8);
+
+            let bathrooms = prop.get("bathrooms")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u8);
+
+            let agent = prop.get("customer")
+                .and_then(|c| c.get("branchDisplayName"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let description = prop.get("summary")
+                .or_else(|| prop.get("propertyCard").and_then(|c| c.get("summary")))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let property_id = prop.get("id")
+                .and_then(|v| v.as_u64())
+                .map(|id| format!("https://www.rightmove.co.uk/properties/{}", id))
+                .unwrap_or_default();
+
+            let property_url = prop.get("propertyUrl")
+                .and_then(|v| v.as_str())
+                .map(|u| {
+                    if u.starts_with("http") { u.to_string() }
+                    else { format!("https://www.rightmove.co.uk{}", u) }
+                })
+                .unwrap_or(property_id);
+
+            results.push(ScrapedProperty {
+                url: property_url,
+                address,
+                price,
+                property_type,
+                bedrooms,
+                bathrooms,
+                agent,
+                description: self.clean_html(&description),
+                tenure: None,
+                size_sqft: None,
+                estimated_yield: None,
+                sale_date: None,
+            });
+        }
+
+        Some(results)
     }
 
     fn parse_price(&self, price_text: &str) -> Option<u64> {
@@ -366,15 +526,22 @@ impl RightmoveScraper {
             .to_string()
     }
 
-    fn matches_investment_keywords(&self, description: &str, keywords: &[String]) -> bool {
+    fn matches_investment_keywords(&self, property: &ScrapedProperty, keywords: &[String]) -> bool {
         if keywords.is_empty() {
-            return true; // If no keywords specified, include all
+            return true;
         }
 
-        let desc_lower = description.to_lowercase();
+        // Search across description, address, and property type
+        let searchable = format!(
+            "{} {} {}",
+            property.description.to_lowercase(),
+            property.address.to_lowercase(),
+            property.property_type.to_lowercase()
+        );
+
         keywords.iter().any(|keyword| {
             let keyword_lower = keyword.trim().to_lowercase();
-            !keyword_lower.is_empty() && desc_lower.contains(&keyword_lower)
+            !keyword_lower.is_empty() && searchable.contains(&keyword_lower)
         })
     }
 
@@ -409,9 +576,15 @@ impl RightmoveScraper {
         }
 
         let html = response.text().await?;
+
+        // Try to extract from embedded PAGE_MODEL JSON first (Rightmove renders via JS)
+        if let Some(property) = self.extract_from_page_model(&html, url) {
+            return Ok(property);
+        }
+
+        // Fallback: try CSS selectors on the raw HTML
         let document = Html::parse_document(&html);
 
-        // Extract property details using multiple selectors for robustness
         let address = self.extract_detail(&document, &[
             "h1[data-test='property-address']",
             ".property-address h1",
@@ -470,7 +643,6 @@ impl RightmoveScraper {
             ".property-size"
         ]);
 
-        // Parse extracted values
         let price = self.parse_price(&price_text);
         let bedrooms = self.parse_number(&bedrooms_text);
         let bathrooms = self.parse_number(&bathrooms_text);
@@ -480,7 +652,7 @@ impl RightmoveScraper {
                  address, price_text, property_type, agent);
 
         if address.is_empty() {
-            return Err(anyhow::anyhow!("Could not extract property address from page"));
+            return Err(anyhow::anyhow!("Could not extract property address from page. Rightmove may have blocked the request or changed their page structure."));
         }
 
         Ok(ScrapedProperty {
@@ -494,7 +666,106 @@ impl RightmoveScraper {
             description: self.clean_html(&description),
             tenure: if tenure.is_empty() { None } else { Some(self.clean_html(&tenure)) },
             size_sqft,
-            estimated_yield: None, // Will be calculated if needed
+            estimated_yield: None,
+            sale_date: None,
+        })
+    }
+
+    fn extract_from_page_model(&self, html: &str, url: &str) -> Option<ScrapedProperty> {
+        // Rightmove embeds property data as window.PAGE_MODEL = {...} in a <script> tag
+        let marker = "window.PAGE_MODEL = ";
+        let start = html.find(marker)?;
+        let json_start = start + marker.len();
+
+        // Find the end of the JSON object by matching braces
+        let rest = &html[json_start..];
+        let mut depth = 0i32;
+        let mut json_end = 0;
+        for (i, ch) in rest.char_indices() {
+            match ch {
+                '{' => depth += 1,
+                '}' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        json_end = i + 1;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        if json_end == 0 {
+            return None;
+        }
+        let json_str = &rest[..json_end];
+
+        let model: serde_json::Value = serde_json::from_str(json_str).ok()?;
+        let property_data = model.get("propertyData")?;
+
+        let address = property_data.get("address")
+            .and_then(|a| a.get("displayAddress"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        if address.is_empty() {
+            return None;
+        }
+
+        let price = property_data.get("prices")
+            .and_then(|p| p.get("primaryPrice"))
+            .and_then(|v| v.as_str())
+            .and_then(|s| self.parse_price(s));
+
+        let property_type = property_data.get("propertySubType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Property")
+            .to_string();
+
+        let bedrooms = property_data.get("bedrooms")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u8);
+
+        let bathrooms = property_data.get("bathrooms")
+            .and_then(|v| v.as_u64())
+            .map(|v| v as u8);
+
+        let tenure = property_data.get("tenure")
+            .and_then(|t| t.get("tenureType"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let agent = property_data.get("customer")
+            .and_then(|c| c.get("branchDisplayName"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let description = property_data.get("text")
+            .and_then(|t| t.get("description"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let size_sqft = property_data.get("sizings")
+            .and_then(|s| s.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|s| s.get("maximumSize"))
+            .and_then(|v| v.as_f64())
+            .map(|v| v as u32);
+
+        Some(ScrapedProperty {
+            url: url.to_string(),
+            address,
+            price,
+            property_type,
+            bedrooms,
+            bathrooms,
+            agent,
+            description: self.clean_html(&description),
+            tenure,
+            size_sqft,
+            estimated_yield: None,
             sale_date: None,
         })
     }

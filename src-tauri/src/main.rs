@@ -45,12 +45,10 @@ async fn find_investment_properties(
     app: tauri::AppHandle,
     min_price: u64,
     max_price: u64,
-    min_yield: f64,
     keywords: Vec<String>
 ) -> Result<Vec<ScrapedProperty>, String> {
     let scraper = RightmoveScraper::new();
 
-    // Emit progress: Starting search
     let _ = app.emit("search_progress", serde_json::json!({
         "progress": 10,
         "message": "Searching Rightmove..."
@@ -60,59 +58,33 @@ async fn find_investment_properties(
         min_price: Some(min_price),
         max_price: Some(max_price),
         property_types: vec!["flat".to_string(), "house".to_string()],
-        min_bedrooms: Some(2), // Minimum for investment properties
-        tenure: None, // We'll filter for freehold in post-processing
+        min_bedrooms: Some(2),
+        tenure: None,
         include_sold: false,
         sold_months_back: None,
     };
 
     match scraper.search_london_properties(&params, &keywords, &app).await {
         Ok(mut properties) => {
-            // Emit progress: Processing results
-            let _ = app.emit("search_progress", serde_json::json!({
-                "progress": 80,
-                "message": format!("Calculating yields for {} properties...", properties.len())
-            }));
-
             // Add yield estimates
-            let total_properties = properties.len();
-            for (index, property) in properties.iter_mut().enumerate() {
+            let total = properties.len();
+            for (i, property) in properties.iter_mut().enumerate() {
                 if let Some(price) = property.price {
                     property.estimated_yield = scraper.estimate_gross_yield(price, &property.address).await;
                 }
-
-                // Update progress during yield calculation
-                let yield_progress = 80 + (15 * index / total_properties.max(1));
+                let progress = 80 + (18 * i / total.max(1));
                 let _ = app.emit("search_progress", serde_json::json!({
-                    "progress": yield_progress,
-                    "message": format!("Calculating yields... ({}/{} done)", index + 1, total_properties)
+                    "progress": progress,
+                    "message": format!("Estimating yields... ({}/{})", i + 1, total)
                 }));
             }
 
-            // Emit progress: Filtering results
-            let _ = app.emit("search_progress", serde_json::json!({
-                "progress": 95,
-                "message": "Filtering by yield criteria..."
-            }));
-
-            // Filter for minimum yield if specified
-            let filtered: Vec<ScrapedProperty> = properties.into_iter()
-                .filter(|p| {
-                    if min_yield > 0.0 {
-                        p.estimated_yield.map_or(false, |yield_pct| yield_pct >= min_yield)
-                    } else {
-                        true // No yield filter if 0
-                    }
-                })
-                .collect();
-
-            // Emit final progress
             let _ = app.emit("search_progress", serde_json::json!({
                 "progress": 100,
-                "message": format!("Found {} investment properties!", filtered.len())
+                "message": format!("Found {} investment properties!", properties.len())
             }));
 
-            Ok(filtered)
+            Ok(properties)
         },
         Err(e) => Err(format!("Failed to find investment properties: {}", e)),
     }

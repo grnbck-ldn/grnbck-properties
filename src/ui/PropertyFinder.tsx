@@ -21,36 +21,34 @@ interface ScrapedProperty {
 
 interface Props {
   onAddProperty: (property: any) => void;
+  existingUrls: Set<string>;
 }
 
-export function PropertyFinder({ onAddProperty }: Props) {
+// Module-level cache so results survive component remounts
+let _cached: ScrapedProperty[] = [];
+
+export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
   const [loading, setLoading] = useState(false);
-  const [foundProperties, setFoundProperties] = useState<ScrapedProperty[]>([]);
-  const [soldProperties, setSoldProperties] = useState<ScrapedProperty[]>([]);
-  const [activeTab, setActiveTab] = useState<"for-sale" | "sold">("for-sale");
+  const [foundProperties, setFoundProperties] = useState<ScrapedProperty[]>(_cached);
   const [error, setError] = useState<string | null>(null);
 
-  // Progress tracking
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
 
-  // Search parameters
   const [minPrice, setMinPrice] = useState(400000);
   const [maxPrice, setMaxPrice] = useState(3000000);
-  const [minYield, setMinYield] = useState(6);
-  const [keywords, setKeywords] = useState("flats,flat,units,conversion,block,investment,rental income,tenanted,multi,divided,converted,hmo,multiple");
+  const [keywords, setKeywords] = useState("block of flats,mixed use,investment property,tenanted,hmo,freehold block,residential investment,income producing,multi-let");
+
+  // Sync to module cache
+  useEffect(() => { _cached = foundProperties; }, [foundProperties]);
 
   useEffect(() => {
-    // Listen for progress updates from Rust backend
     const unlisten = listen('search_progress', (event: any) => {
       const { progress: progressValue, message } = event.payload;
       setProgress(progressValue);
       setProgressMessage(message);
     });
-
-    return () => {
-      unlisten.then(fn => fn());
-    };
+    return () => { unlisten.then(fn => fn()); };
   }, []);
 
   async function findInvestmentProperties() {
@@ -62,11 +60,12 @@ export function PropertyFinder({ onAddProperty }: Props) {
       const properties = await invoke<ScrapedProperty[]>("find_investment_properties", {
         minPrice,
         maxPrice,
-        minYield,
         keywords: keywords.split(',').map(k => k.trim()).filter(k => k.length > 0)
       });
-      setFoundProperties(properties);
-      console.log(`Found ${properties.length} potential investment properties`);
+      // Filter out properties already in portfolio
+      const filtered = properties.filter(p => !existingUrls.has(p.url));
+      setFoundProperties(filtered);
+      console.log(`Found ${properties.length} properties, ${filtered.length} new`);
     } catch (err) {
       setError(`Failed to find properties: ${err}`);
       console.error("Property search error:", err);
@@ -77,29 +76,7 @@ export function PropertyFinder({ onAddProperty }: Props) {
     }
   }
 
-  async function findSoldProperties() {
-    setLoading(true);
-    setError(null);
-    setProgress(0);
-    setProgressMessage("Starting sold properties search...");
-    try {
-      const properties = await invoke<ScrapedProperty[]>("search_sold_properties", {
-        monthsBack: 24
-      });
-      setSoldProperties(properties);
-      console.log(`Found ${properties.length} sold properties for market analysis`);
-    } catch (err) {
-      setError(`Failed to find sold properties: ${err}`);
-      console.error("Sold property search error:", err);
-    } finally {
-      setLoading(false);
-      setProgress(0);
-      setProgressMessage("");
-    }
-  }
-
   async function approveProperty(property: ScrapedProperty) {
-    // Convert scraped property to our property format
     const newProperty = {
       address: property.address,
       price_gbp: property.price || null,
@@ -107,22 +84,25 @@ export function PropertyFinder({ onAddProperty }: Props) {
       listing_url: property.url,
       selling_agent: property.agent,
       property_type: "residential" as const,
-      ltv_pct: 75, // Default LTV
-      interest_rate_pct: 6, // Default interest rate
-      hold_period_years: 5, // Default hold period
-      rent_growth_pct: 2, // Default rent growth
-      value_growth_pct: 2, // Default value growth
-      fees_pct: 0.01, // Default fees
+      ltv_pct: 75,
+      interest_rate_pct: 6,
+      hold_period_years: 5,
+      rent_growth_pct: 2,
+      value_growth_pct: 2,
+      fees_pct: 0.01,
     };
 
-    await onAddProperty(newProperty);
-
-    // Remove from found properties list
-    setFoundProperties(prev => prev.filter(p => p.url !== property.url));
+    try {
+      await onAddProperty(newProperty);
+      // Remove from list after successful add
+      setFoundProperties(prev => prev.filter(p => p.url !== property.url));
+    } catch (err) {
+      console.error("Failed to add property:", err);
+      setError(`Failed to add property: ${err}`);
+    }
   }
 
   function declineProperty(property: ScrapedProperty) {
-    // Simply remove from the list
     setFoundProperties(prev => prev.filter(p => p.url !== property.url));
   }
 
@@ -137,13 +117,12 @@ export function PropertyFinder({ onAddProperty }: Props) {
   return (
     <div className="card">
       <div style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0, marginBottom: 8 }}>🔍 Property Discovery</h3>
+        <h3 style={{ margin: 0, marginBottom: 8 }}>Property Discovery</h3>
         <p className="small muted" style={{ margin: 0 }}>
-          Find investment properties in London with customizable search criteria
+          Find multi-unit investment properties in London
         </p>
       </div>
 
-      {/* Search Parameters */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
@@ -155,7 +134,7 @@ export function PropertyFinder({ onAddProperty }: Props) {
       }}>
         <div>
           <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
-            Min Price (£)
+            Min Price
           </label>
           <input
             type="number"
@@ -167,25 +146,12 @@ export function PropertyFinder({ onAddProperty }: Props) {
 
         <div>
           <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
-            Max Price (£)
+            Max Price
           </label>
           <input
             type="number"
             value={maxPrice}
             onChange={(e) => setMaxPrice(parseInt(e.target.value) || 0)}
-            style={{ width: "100%" }}
-          />
-        </div>
-
-        <div>
-          <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
-            Min Yield (%)
-          </label>
-          <input
-            type="number"
-            step="0.1"
-            value={minYield}
-            onChange={(e) => setMinYield(parseFloat(e.target.value) || 0)}
             style={{ width: "100%" }}
           />
         </div>
@@ -198,50 +164,23 @@ export function PropertyFinder({ onAddProperty }: Props) {
             type="text"
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
-            placeholder="flats,conversion,block,investment,multi,hmo..."
+            placeholder="block of flats,mixed use,investment,hmo..."
             style={{ width: "100%" }}
           />
           <p className="small muted" style={{ margin: "4px 0 0 0", fontSize: 10 }}>
-            Properties matching these keywords will be considered investment opportunities
+            Each keyword is searched on Rightmove separately. Properties already in your portfolio are hidden.
           </p>
         </div>
       </div>
 
       <div className="row" style={{ marginBottom: 16, gap: 8 }}>
-        <div className="row" style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 2 }}>
-          <button
-            className={activeTab === "for-sale" ? "" : "secondary"}
-            onClick={() => setActiveTab("for-sale")}
-            style={{ fontSize: 12, padding: "6px 12px" }}
-          >
-            For Sale ({foundProperties.length})
-          </button>
-          <button
-            className={activeTab === "sold" ? "" : "secondary"}
-            onClick={() => setActiveTab("sold")}
-            style={{ fontSize: 12, padding: "6px 12px" }}
-          >
-            Market Data ({soldProperties.length})
-          </button>
-        </div>
-
-        {activeTab === "for-sale" ? (
-          <button
-            onClick={findInvestmentProperties}
-            disabled={loading}
-            style={{ background: loading ? "rgba(125,211,252,0.1)" : "rgba(125,211,252,0.14)" }}
-          >
-            {loading ? "Searching..." : "🏠 Find Properties"}
-          </button>
-        ) : (
-          <button
-            onClick={findSoldProperties}
-            disabled={loading}
-            style={{ background: loading ? "rgba(125,211,252,0.1)" : "rgba(125,211,252,0.14)" }}
-          >
-            {loading ? "Searching..." : "📊 Find Sold Data"}
-          </button>
-        )}
+        <button
+          onClick={findInvestmentProperties}
+          disabled={loading}
+          style={{ background: loading ? "rgba(125,211,252,0.1)" : "rgba(125,211,252,0.14)" }}
+        >
+          {loading ? "Searching..." : "Find Properties"}
+        </button>
       </div>
 
       {loading && (
@@ -285,15 +224,15 @@ export function PropertyFinder({ onAddProperty }: Props) {
         </div>
       )}
 
-      {activeTab === "for-sale" && foundProperties.length > 0 && (
+      {foundProperties.length > 0 && (
         <div>
           <h4 style={{ margin: "0 0 12px 0", color: "var(--accent)" }}>
-            Found {foundProperties.length} Investment Properties
+            {foundProperties.length} Investment Properties
           </h4>
 
           <div style={{ display: "grid", gap: "12px" }}>
             {foundProperties.map((property, index) => (
-              <div key={index} style={{
+              <div key={property.url || index} style={{
                 background: "rgba(255,255,255,0.04)",
                 border: "1px solid var(--border)",
                 borderRadius: 12,
@@ -305,7 +244,7 @@ export function PropertyFinder({ onAddProperty }: Props) {
                       {property.address}
                     </div>
                     <div className="small muted">
-                      {property.agent} • {property.property_type}
+                      {property.agent} {property.bedrooms ? `• ${property.bedrooms} bed` : ""} • {property.property_type}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
@@ -327,11 +266,11 @@ export function PropertyFinder({ onAddProperty }: Props) {
                 {property.description && (
                   <div className="small muted" style={{
                     marginBottom: 12,
-                    maxHeight: 40,
+                    maxHeight: 60,
                     overflow: "hidden",
                     textOverflow: "ellipsis"
                   }}>
-                    {property.description.slice(0, 150)}...
+                    {property.description.slice(0, 200)}...
                   </div>
                 )}
 
@@ -341,7 +280,7 @@ export function PropertyFinder({ onAddProperty }: Props) {
                     onClick={() => openListing(property.url)}
                     style={{ fontSize: 12 }}
                   >
-                    View Listing →
+                    View Listing
                   </button>
 
                   <div className="row" style={{ gap: 8 }}>
@@ -350,7 +289,7 @@ export function PropertyFinder({ onAddProperty }: Props) {
                       onClick={() => declineProperty(property)}
                       style={{ fontSize: 12, padding: "6px 12px" }}
                     >
-                      ✗ Pass
+                      Pass
                     </button>
                     <button
                       onClick={() => approveProperty(property)}
@@ -361,7 +300,7 @@ export function PropertyFinder({ onAddProperty }: Props) {
                         borderColor: "rgba(16, 185, 129, 0.35)"
                       }}
                     >
-                      ✓ Add to Portfolio
+                      Add to Portfolio
                     </button>
                   </div>
                 </div>
@@ -371,55 +310,12 @@ export function PropertyFinder({ onAddProperty }: Props) {
         </div>
       )}
 
-      {activeTab === "sold" && soldProperties.length > 0 && (
-        <div>
-          <h4 style={{ margin: "0 0 12px 0", color: "var(--accent)" }}>
-            Market Analysis: {soldProperties.length} Recently Sold Properties
-          </h4>
-
-          <div style={{ overflowX: "auto" }}>
-            <table className="table" style={{ fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th>Address</th>
-                  <th>Sale Price</th>
-                  <th>Sale Date</th>
-                  <th>Agent</th>
-                  <th>Link</th>
-                </tr>
-              </thead>
-              <tbody>
-                {soldProperties.map((property, index) => (
-                  <tr key={index}>
-                    <td>{property.address}</td>
-                    <td style={{ fontWeight: 600 }}>
-                      {property.price ? fmtGBP(property.price) : "Unknown"}
-                    </td>
-                    <td>{property.sale_date || "Recent"}</td>
-                    <td>{property.agent}</td>
-                    <td>
-                      <button
-                        className="linkButton"
-                        onClick={() => openListing(property.url)}
-                        style={{ fontSize: 11 }}
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {!loading && foundProperties.length === 0 && soldProperties.length === 0 && (
+      {!loading && foundProperties.length === 0 && (
         <div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🏠</div>
           <div>Click "Find Properties" to discover investment opportunities</div>
           <div className="small" style={{ marginTop: 4 }}>
-            Searches London for freehold multi-flat properties with 6%+ estimated yield
+            Searches Greater London for multi-unit investment properties by price range and keywords
           </div>
         </div>
       )}

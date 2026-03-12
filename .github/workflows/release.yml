@@ -86,6 +86,14 @@ jobs:
               "darwin-universal": {
                 "signature": "$MAC_SIG",
                 "url": "$MAC_URL"
+              },
+              "darwin-aarch64": {
+                "signature": "$MAC_SIG",
+                "url": "$MAC_URL"
+              },
+              "darwin-x86_64": {
+                "signature": "$MAC_SIG",
+                "url": "$MAC_URL"
               }
             }
           }

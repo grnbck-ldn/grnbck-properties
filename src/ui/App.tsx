@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-shell";
 import { check } from "@tauri-apps/plugin-updater";
+import { getVersion } from "@tauri-apps/api/app";
 import { supabase } from "../lib/supabase";
 import { PropertyRow, ProfileRow } from "../lib/types";
 import { calcGrossIrr, calcNetYield, calcTotalReturnOnEquity, fmtGBP, fmtPct } from "../lib/finance";
@@ -41,7 +42,10 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [appVersion, setAppVersion] = useState<string>("");
   const [viewMode, setViewMode] = useState<"table" | "map" | "finder">("table");
+
+  useEffect(() => { getVersion().then(setAppVersion); }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -247,7 +251,7 @@ export function App() {
       )}
       <div className="row between" style={{ marginBottom: 14 }}>
         <div>
-          <h1>grnbck London <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v1.1.0</span></h1>
+          <h1>grnbck London {appVersion && <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v{appVersion}</span>}</h1>
           {!profile && (
             <div className="small">
               No org profile yet — ask admin to add you to <code>profiles</code>.

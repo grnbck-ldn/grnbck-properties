@@ -60,6 +60,11 @@ export function App() {
   useEffect(() => {
     check()
       .then(async (update) => {
+        if (!update) {
+          setUpdateStatus("Up to date");
+          setTimeout(() => setUpdateStatus(null), 3000);
+          return;
+        }
         if (update) {
           let downloaded = 0;
           let total = 0;
@@ -79,7 +84,7 @@ export function App() {
           });
         }
       })
-      .catch((e) => console.error("Update check failed:", e));
+      .catch((e) => setUpdateStatus(`Update check failed: ${e}`));
   }, []);
 
   async function loadProfileAndProperties() {

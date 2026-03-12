@@ -40,7 +40,7 @@ export function fmtPct(n: number | null | undefined): string {
   }).format(n);
 }
 
-export type PropertyType = "residential" | "mixed_use";
+export type PropertyType = "residential" | "mixed_use" | "residential_6plus";
 
 function slab(price: number, bands: Array<{ upTo: number | null; rate: number }>) {
   let remaining = price;
@@ -63,7 +63,7 @@ function slab(price: number, bands: Array<{ upTo: number | null; rate: number }>
 export function calcStampDuty(price: number | null, type: PropertyType): number | null {
   if (price == null || !Number.isFinite(price) || price <= 0) return null;
 
-  if (type === "mixed_use") {
+  if (type === "mixed_use" || type === "residential_6plus") {
     // Up to 150k: 0%, 150–250k: 2%, 250k+: 5%
     return slab(price, [
       { upTo: 150_000, rate: 0.0 },

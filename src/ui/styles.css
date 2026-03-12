@@ -107,16 +107,17 @@ h1,h2,h3 { margin: 0; }
   inset: 0;
   background: rgba(0,0,0,0.65);
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
   padding: 24px;
   z-index: 1000;
+  overflow-y: auto;
 }
 
 .modal {
   width: min(900px, 100%);
-  max-height: calc(100vh - 48px);
-  overflow-y: auto;
+  max-height: none;
+  overflow-y: visible;
   resize: both;
   background: #0b1220;
   border: 1px solid var(--border);

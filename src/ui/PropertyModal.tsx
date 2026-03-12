@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { PropertyRow } from "../lib/types";
 import { calcNetYield, fmtGBP, fmtPct, calcStampDuty, calcGrossIrr, calcTotalReturnOnEquity } from "../lib/finance";
+import { PropertyFiles } from "./PropertyFiles";
 
 interface ScrapedProperty {
   url: string;
@@ -49,11 +50,11 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
   // Core numbers
   const [sqm, setSqm] = useState(initial?.sqm?.toString() ?? "");
   const [price, setPrice] = useState(initial?.price_gbp?.toString() ?? "");
-  const [opexPerSqm, setOpexPerSqm] = useState(initial?.opex_per_sqm_gbp_per_year?.toString() ?? "");
+  const [opexPerSqm, setOpexPerSqm] = useState(initial?.opex_per_sqm_gbp_per_year?.toString() ?? "49");
   const [annualRent, setAnnualRent] = useState(initial?.annual_rent_gbp?.toString() ?? "");
 
   // New: property type + fees + stamp duty
-  const [propertyType, setPropertyType] = useState<"residential" | "mixed_use">(
+  const [propertyType, setPropertyType] = useState<"residential" | "mixed_use" | "residential_6plus">(
     (initial as any)?.property_type ?? "residential"
   );
 
@@ -66,11 +67,11 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
   );
 
   // Project assumptions
-  const [ltvPct, setLtvPct] = useState((initial as any)?.ltv_pct?.toString() ?? "60");
+  const [ltvPct, setLtvPct] = useState((initial as any)?.ltv_pct?.toString() ?? "65");
   const [interestRatePct, setInterestRatePct] = useState((initial as any)?.interest_rate_pct?.toString() ?? "6");
-  const [holdYears, setHoldYears] = useState((initial as any)?.hold_period_years?.toString() ?? "5");
-  const [rentGrowthPct, setRentGrowthPct] = useState((initial as any)?.rent_growth_pct?.toString() ?? "0");
-  const [valueGrowthPct, setValueGrowthPct] = useState((initial as any)?.value_growth_pct?.toString() ?? "0");
+  const [holdYears, setHoldYears] = useState((initial as any)?.hold_period_years?.toString() ?? "7");
+  const [rentGrowthPct, setRentGrowthPct] = useState((initial as any)?.rent_growth_pct?.toString() ?? "2");
+  const [valueGrowthPct, setValueGrowthPct] = useState((initial as any)?.value_growth_pct?.toString() ?? "2");
 
   const priceNum = useMemo(() => numOrNull(price), [price]);
 
@@ -328,6 +329,7 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
             <select value={propertyType} onChange={(e) => setPropertyType(e.target.value as any)}>
               <option value="residential">Residential</option>
               <option value="mixed_use">Mixed-use</option>
+              <option value="residential_6plus">Residential 6+</option>
             </select>
           </div>
 
@@ -418,6 +420,13 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
             <input value={valueGrowthPct} onChange={(e) => setValueGrowthPct(e.target.value)} inputMode="decimal" />
           </div>
         </div>
+
+        {initial?.id && (
+          <>
+            <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "20px 0 0 0" }} />
+            <PropertyFiles propertyId={initial.id} />
+          </>
+        )}
 
         <div className="row end" style={{ marginTop: 14 }}>
           <button className="secondary" onClick={onClose} disabled={saving}>

@@ -38,6 +38,7 @@ export function App() {
   const [creating, setCreating] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"table" | "map" | "finder">("table");
 
@@ -128,12 +129,10 @@ export function App() {
 
   async function signUp() {
     setError(null);
+    setSuccess(null);
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) setError(error.message);
-    else
-      setError(
-        "Account created. Ask an admin to add you to grnbck in the profiles table, then sign in again."
-      );
+    else setSuccess("Account created!");
   }
 
   async function signOut() {
@@ -201,6 +200,11 @@ export function App() {
           {error && (
             <p className="small" style={{ color: "#fb7185", marginTop: 12 }}>
               {error}
+            </p>
+          )}
+          {success && (
+            <p className="small" style={{ color: "#34d399", marginTop: 12 }}>
+              {success}
             </p>
           )}
 

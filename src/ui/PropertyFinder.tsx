@@ -27,6 +27,7 @@ interface Props {
 
 // Module-level cache so results survive component remounts
 let _cached: ScrapedProperty[] = [];
+const _dismissed = new Set<string>();
 
 export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
   const [loading, setLoading] = useState(false);
@@ -63,8 +64,8 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
         maxPrice,
         keywords: keywords.split(',').map(k => k.trim()).filter(k => k.length > 0)
       });
-      // Filter out properties already in portfolio
-      const filtered = properties.filter(p => !existingUrls.has(p.url));
+      // Filter out properties already in portfolio or previously dismissed/added
+      const filtered = properties.filter(p => !existingUrls.has(p.url) && !_dismissed.has(p.url));
       setFoundProperties(filtered);
       console.log(`Found ${properties.length} properties, ${filtered.length} new`);
     } catch (err) {
@@ -95,7 +96,7 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
 
     try {
       await onAddProperty(newProperty);
-      // Remove from list after successful add
+      _dismissed.add(property.url);
       setFoundProperties(prev => prev.filter(p => p.url !== property.url));
     } catch (err) {
       console.error("Failed to add property:", err);
@@ -104,6 +105,7 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
   }
 
   function declineProperty(property: ScrapedProperty) {
+    _dismissed.add(property.url);
     setFoundProperties(prev => prev.filter(p => p.url !== property.url));
   }
 

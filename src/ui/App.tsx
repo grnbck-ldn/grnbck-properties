@@ -7,6 +7,7 @@ import { calcGrossIrr, calcNetYield, calcTotalReturnOnEquity, fmtGBP, fmtPct } f
 import { PropertyModal } from "./PropertyModal";
 import { PropertyMap } from "./PropertyMap";
 import { PropertyFinder } from "./PropertyFinder";
+import { PropertyFiles } from "./PropertyFiles";
 
 
 type SortKey =
@@ -56,9 +57,22 @@ export function App() {
     check()
       .then(async (update) => {
         if (update) {
-          setUpdateStatus(`Updating to v${update.version}…`);
-          await update.downloadAndInstall();
-          setUpdateStatus("Update installed — restart to apply.");
+          let downloaded = 0;
+          let total = 0;
+          await update.downloadAndInstall((event) => {
+            if (event.event === "Started") {
+              total = event.data.contentLength ?? 0;
+              setUpdateStatus(`Downloading v${update.version}…`);
+            } else if (event.event === "Progress") {
+              downloaded += event.data.chunkLength;
+              if (total > 0) {
+                const pct = Math.round((downloaded / total) * 100);
+                setUpdateStatus(`Downloading v${update.version}… ${pct}%`);
+              }
+            } else if (event.event === "Finished") {
+              setUpdateStatus("Update ready — close and reopen the app to apply.");
+            }
+          });
         }
       })
       .catch((e) => console.error("Update check failed:", e));
@@ -540,6 +554,7 @@ export function App() {
                                 )}
                               </div>
                             </div>
+                            <PropertyFiles propertyId={p.id} />
                           </td>
                         </tr>
                       )}

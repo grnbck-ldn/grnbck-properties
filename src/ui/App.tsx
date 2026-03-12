@@ -229,7 +229,7 @@ export function App() {
       )}
       <div className="row between" style={{ marginBottom: 14 }}>
         <div>
-          <h1>grnbck London <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v1.0.0</span></h1>
+          <h1>grnbck London <span className="small" style={{ color: 'var(--muted)', fontWeight: 'normal' }}>v1.1.0</span></h1>
           {!profile && (
             <div className="small">
               No org profile yet — ask admin to add you to <code>profiles</code>.

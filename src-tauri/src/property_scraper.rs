@@ -14,6 +14,7 @@ pub struct ScrapedProperty {
     pub address: String,
     pub price: Option<u64>,
     pub property_type: String,
+    pub sector: Option<String>,
     pub bedrooms: Option<u8>,
     pub bathrooms: Option<u8>,
     pub agent: String,
@@ -114,7 +115,14 @@ impl RightmoveScraper {
             sleep(Duration::from_secs(delay_secs)).await;
         }
 
-        println!("Total unique properties found: {}", all_properties.len());
+        // Keep only plots, land, or properties in the "Land for sale" sector
+        all_properties.retain(|p| {
+            let pt = p.property_type.to_lowercase();
+            let sec = p.sector.as_deref().unwrap_or("").to_lowercase();
+            pt.contains("plot") || pt.contains("land") || sec.contains("land")
+        });
+
+        println!("Total unique land/plot properties found: {}", all_properties.len());
         Ok(all_properties)
     }
 
@@ -127,6 +135,7 @@ impl RightmoveScraper {
         url.query_pairs_mut().append_pair("radius", "0.0");
         url.query_pairs_mut().append_pair("sortType", "2");
         url.query_pairs_mut().append_pair("viewType", "LIST");
+        url.query_pairs_mut().append_pair("propertyTypes", "land");
 
         if let Some(min_price) = params.min_price {
             url.query_pairs_mut().append_pair("minPrice", &min_price.to_string());
@@ -347,9 +356,14 @@ impl RightmoveScraper {
                 });
 
             let property_type = prop.get("propertySubType")
+                .or_else(|| prop.get("propertyType"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("Property")
                 .to_string();
+
+            let sector = prop.get("channel")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
 
             let bedrooms = prop.get("bedrooms")
                 .and_then(|v| v.as_u64())
@@ -388,6 +402,7 @@ impl RightmoveScraper {
                 address,
                 price,
                 property_type,
+                sector,
                 bedrooms,
                 bathrooms,
                 agent,
@@ -451,9 +466,14 @@ impl RightmoveScraper {
                 .or_else(|| prop.get("price").and_then(|p| p.get("amount")).and_then(|v| v.as_u64()));
 
             let property_type = prop.get("propertySubType")
+                .or_else(|| prop.get("propertyType"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("Property")
                 .to_string();
+
+            let sector = prop.get("channel")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
 
             let bedrooms = prop.get("bedrooms")
                 .and_then(|v| v.as_u64())
@@ -493,6 +513,7 @@ impl RightmoveScraper {
                 address,
                 price,
                 property_type,
+                sector,
                 bedrooms,
                 bathrooms,
                 agent,
@@ -524,25 +545,6 @@ impl RightmoveScraper {
             .replace("&amp;", "&")
             .trim()
             .to_string()
-    }
-
-    fn matches_investment_keywords(&self, property: &ScrapedProperty, keywords: &[String]) -> bool {
-        if keywords.is_empty() {
-            return true;
-        }
-
-        // Search across description, address, and property type
-        let searchable = format!(
-            "{} {} {}",
-            property.description.to_lowercase(),
-            property.address.to_lowercase(),
-            property.property_type.to_lowercase()
-        );
-
-        keywords.iter().any(|keyword| {
-            let keyword_lower = keyword.trim().to_lowercase();
-            !keyword_lower.is_empty() && searchable.contains(&keyword_lower)
-        })
     }
 
     pub async fn scrape_single_property(&self, url: &str) -> Result<ScrapedProperty> {
@@ -660,6 +662,7 @@ impl RightmoveScraper {
             address: self.clean_html(&address),
             price,
             property_type: if property_type.is_empty() { "Property".to_string() } else { self.clean_html(&property_type) },
+            sector: None,
             bedrooms,
             bathrooms,
             agent: self.clean_html(&agent),
@@ -759,6 +762,7 @@ impl RightmoveScraper {
             address,
             price,
             property_type,
+            sector: None,
             bedrooms,
             bathrooms,
             agent,

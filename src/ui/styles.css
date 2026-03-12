@@ -39,13 +39,15 @@ a:hover { text-decoration: underline; }
 .row.between { justify-content: space-between; }
 .row.end { justify-content: flex-end; }
 
-input, select {
+input, select, textarea {
   background: rgba(255,255,255,0.04);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 12px;
-  padding: 10px 12px;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
   outline: none;
+  box-sizing: border-box;
 }
 input:focus, select:focus { border-color: rgba(125, 211, 252, 0.6); }
 /* Improve dropdown option readability (best effort – OS may override some styles) */

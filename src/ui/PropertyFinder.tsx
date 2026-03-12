@@ -2,13 +2,14 @@ import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-shell";
-import { fmtGBP, fmtPct } from "../lib/finance";
+import { fmtGBP } from "../lib/finance";
 
 interface ScrapedProperty {
   url: string;
   address: string;
   price?: number;
   property_type: string;
+  sector?: string;
   bedrooms?: number;
   bathrooms?: number;
   agent: string;
@@ -37,7 +38,7 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
 
   const [minPrice, setMinPrice] = useState(400000);
   const [maxPrice, setMaxPrice] = useState(3000000);
-  const [keywords, setKeywords] = useState("block of flats,mixed use,investment property,tenanted,hmo,freehold block,residential investment,income producing,multi-let");
+  const [keywords, setKeywords] = useState("development site,building plot,planning permission,brownfield,greenfield,residential development,planning consent,self build");
 
   // Sync to module cache
   useEffect(() => { _cached = foundProperties; }, [foundProperties]);
@@ -117,58 +118,52 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
   return (
     <div className="card">
       <div style={{ marginBottom: 16 }}>
-        <h3 style={{ margin: 0, marginBottom: 8 }}>Property Discovery</h3>
+        <h3 style={{ margin: 0, marginBottom: 8 }}>Land & Plot Finder</h3>
         <p className="small muted" style={{ margin: 0 }}>
-          Find multi-unit investment properties in London
+          Find land and development plots for sale in London
         </p>
       </div>
 
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 12,
-        marginBottom: 16,
-        background: "rgba(255,255,255,0.04)",
-        padding: 16,
-        borderRadius: 8
-      }}>
+      <div style={{ marginBottom: 16, background: "rgba(255,255,255,0.04)", padding: 16, borderRadius: 8 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+          <div style={{ flex: 1 }}>
+            <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>Min Price</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span className="small muted">£</span>
+              <input
+                type="number"
+                value={minPrice}
+                onChange={(e) => setMinPrice(parseInt(e.target.value) || 0)}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>Max Price</label>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span className="small muted">£</span>
+              <input
+                type="number"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(parseInt(e.target.value) || 0)}
+                style={{ width: "100%" }}
+              />
+            </div>
+          </div>
+        </div>
         <div>
           <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
-            Min Price
-          </label>
-          <input
-            type="number"
-            value={minPrice}
-            onChange={(e) => setMinPrice(parseInt(e.target.value) || 0)}
-            style={{ width: "100%" }}
-          />
-        </div>
-
-        <div>
-          <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
-            Max Price
-          </label>
-          <input
-            type="number"
-            value={maxPrice}
-            onChange={(e) => setMaxPrice(parseInt(e.target.value) || 0)}
-            style={{ width: "100%" }}
-          />
-        </div>
-
-        <div style={{ gridColumn: "span 2" }}>
-          <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
-            Investment Keywords (comma-separated)
+            Keywords (comma-separated)
           </label>
           <input
             type="text"
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
-            placeholder="block of flats,mixed use,investment,hmo..."
+            placeholder="development site,building plot,planning permission..."
             style={{ width: "100%" }}
           />
           <p className="small muted" style={{ margin: "4px 0 0 0", fontSize: 10 }}>
-            Each keyword is searched on Rightmove separately. Properties already in your portfolio are hidden.
+            Each keyword is searched on Rightmove separately. Only plots and land listings are shown.
           </p>
         </div>
       </div>
@@ -227,7 +222,7 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
       {foundProperties.length > 0 && (
         <div>
           <h4 style={{ margin: "0 0 12px 0", color: "var(--accent)" }}>
-            {foundProperties.length} Investment Properties
+            {foundProperties.length} Land & Plot Listings
           </h4>
 
           <div style={{ display: "grid", gap: "12px" }}>
@@ -244,22 +239,13 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
                       {property.address}
                     </div>
                     <div className="small muted">
-                      {property.agent} {property.bedrooms ? `• ${property.bedrooms} bed` : ""} • {property.property_type}
+                      {property.agent} • {property.property_type}{property.sector ? ` • ${property.sector}` : ""}
                     </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div style={{ fontSize: 18, fontWeight: 700 }}>
                       {property.price ? fmtGBP(property.price) : "POA"}
                     </div>
-                    {property.estimated_yield && (
-                      <div style={{
-                        color: property.estimated_yield >= 8 ? "#10B981" :
-                               property.estimated_yield >= 6 ? "#F59E0B" : "#EF4444",
-                        fontWeight: 600
-                      }}>
-                        ~{fmtPct(property.estimated_yield / 100)} yield
-                      </div>
-                    )}
                   </div>
                 </div>
 
@@ -313,9 +299,9 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
       {!loading && foundProperties.length === 0 && (
         <div style={{ textAlign: "center", padding: 40, color: "var(--muted)" }}>
           <div style={{ fontSize: 48, marginBottom: 12 }}>🏠</div>
-          <div>Click "Find Properties" to discover investment opportunities</div>
+          <div>Click "Find Properties" to discover land and plots</div>
           <div className="small" style={{ marginTop: 4 }}>
-            Searches Greater London for multi-unit investment properties by price range and keywords
+            Searches Greater London for land and development plots listed as Plot or Land for sale
           </div>
         </div>
       )}

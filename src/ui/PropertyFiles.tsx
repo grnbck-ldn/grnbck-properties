@@ -231,7 +231,9 @@ export function PropertyFiles({ propertyId }: Props) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => deleteFile(f.name)}
+                  onClick={() => {
+                    if (window.confirm(`Delete "${f.name}"?`)) deleteFile(f.name);
+                  }}
                   className="danger"
                   style={{ fontSize: 11, padding: "2px 6px", flexShrink: 0 }}
                 >

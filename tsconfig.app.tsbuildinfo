@@ -1,1 +1,1 @@
-{"root":["./src/main.tsx","./src/lib/finance.ts","./src/lib/supabase.ts","./src/lib/types.ts","./src/ui/app.tsx","./src/ui/propertymodal.tsx"],"version":"5.9.3"}
+{"root":["./src/main.tsx","./src/lib/finance.ts","./src/lib/geocoding.ts","./src/lib/supabase.ts","./src/lib/types.ts","./src/ui/app.tsx","./src/ui/propertyfinder.tsx","./src/ui/propertymap.tsx","./src/ui/propertymodal.tsx"],"version":"5.9.3"}

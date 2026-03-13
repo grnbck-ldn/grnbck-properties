@@ -106,7 +106,7 @@ export function PropertyFiles({ propertyId }: Props) {
               onMouseDown={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex - 1); }}
               style={{
                 position: "absolute", left: 20, top: "50%", transform: "translateY(-50%)",
-                background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+                background: "#1f2937", border: "none", color: "#fff",
                 borderRadius: 8, padding: "10px 16px", fontSize: 20, cursor: "pointer",
               }}
             >
@@ -127,7 +127,7 @@ export function PropertyFiles({ propertyId }: Props) {
               onMouseDown={(e) => { e.stopPropagation(); setLightboxIndex(lightboxIndex + 1); }}
               style={{
                 position: "absolute", right: 20, top: "50%", transform: "translateY(-50%)",
-                background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+                background: "#1f2937", border: "none", color: "#fff",
                 borderRadius: 8, padding: "10px 16px", fontSize: 20, cursor: "pointer",
               }}
             >
@@ -140,7 +140,7 @@ export function PropertyFiles({ propertyId }: Props) {
             onMouseDown={(e) => { e.stopPropagation(); setLightboxIndex(null); }}
             style={{
               position: "absolute", top: 16, right: 16,
-              background: "rgba(255,255,255,0.1)", border: "none", color: "#fff",
+              background: "#1f2937", border: "none", color: "#fff",
               borderRadius: 8, padding: "6px 12px", fontSize: 16, cursor: "pointer",
             }}
           >
@@ -148,7 +148,7 @@ export function PropertyFiles({ propertyId }: Props) {
           </button>
 
           {/* Caption */}
-          <div style={{ position: "absolute", bottom: 16, color: "rgba(255,255,255,0.5)", fontSize: 12 }}>
+          <div style={{ position: "absolute", bottom: 16, color: "#9fb0c3", fontSize: 12 }}>
             {images[lightboxIndex].name} ({lightboxIndex + 1}/{images.length})
           </div>
         </div>
@@ -190,7 +190,7 @@ export function PropertyFiles({ propertyId }: Props) {
             <div
               key={f.name}
               style={{
-                background: "rgba(255,255,255,0.04)",
+                background: "#131a27",
                 border: "1px solid var(--border)",
                 borderRadius: 10,
                 overflow: "hidden",

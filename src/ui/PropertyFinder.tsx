@@ -126,7 +126,7 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
         </p>
       </div>
 
-      <div style={{ marginBottom: 16, background: "rgba(255,255,255,0.04)", padding: 16, borderRadius: 8 }}>
+      <div style={{ marginBottom: 16, background: "#131a27", padding: 16, borderRadius: 8 }}>
         <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
             <label className="small" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>Min Price</label>
@@ -193,7 +193,7 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
           <div style={{
             width: "100%",
             height: 8,
-            background: "rgba(255,255,255,0.1)",
+            background: "#1a2233",
             borderRadius: 4,
             overflow: "hidden"
           }}>
@@ -230,7 +230,7 @@ export function PropertyFinder({ onAddProperty, existingUrls }: Props) {
           <div style={{ display: "grid", gap: "12px" }}>
             {foundProperties.map((property, index) => (
               <div key={property.url || index} style={{
-                background: "rgba(255,255,255,0.04)",
+                background: "#131a27",
                 border: "1px solid var(--border)",
                 borderRadius: 12,
                 padding: 16

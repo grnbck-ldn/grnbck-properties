@@ -83,15 +83,15 @@ export function PropertyMap({ properties }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '11px' }}>
             <span style={{ color: 'var(--muted)' }}>Legend:</span>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid white' }}></div>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#10B981', border: '2px solid #1a2233' }}></div>
               <span style={{ color: 'var(--muted)' }}>15%+ ROE</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#F59E0B', border: '2px solid white' }}></div>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#F59E0B', border: '2px solid #1a2233' }}></div>
               <span style={{ color: 'var(--muted)' }}>10-15% ROE</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#EF4444', border: '2px solid white' }}></div>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#EF4444', border: '2px solid #1a2233' }}></div>
               <span style={{ color: 'var(--muted)' }}>&lt;10% ROE</span>
             </div>
           </div>
@@ -149,7 +149,7 @@ export function PropertyMap({ properties }: Props) {
                 pathOptions={{
                   fillColor: markerColor,
                   fillOpacity: 0.8,
-                  color: '#FFFFFF',
+                  color: '#1a2233',
                   weight: 2,
                   opacity: 1,
                 }}

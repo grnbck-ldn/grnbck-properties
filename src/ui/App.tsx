@@ -276,7 +276,7 @@ export function App() {
       <div className="card">
         <div className="row between">
           <div className="row">
-            <div className="row" style={{ background: "rgba(255,255,255,0.06)", borderRadius: 8, padding: 2 }}>
+            <div className="row" style={{ background: "#151d2c", borderRadius: 8, padding: 2 }}>
               <button
                 className={viewMode === "table" ? "" : "secondary"}
                 onClick={() => setViewMode("table")}

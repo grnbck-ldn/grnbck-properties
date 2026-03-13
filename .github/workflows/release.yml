@@ -59,24 +59,30 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           VERSION="${TAG#v}"
           RELEASE=$(gh release view "$TAG" --json assets --jq '.assets')
-          # Find the .exe installer (Windows) and its signature (.nsis.zip.sig or -setup.exe.sig)
+          # Find installer download URLs
           WIN_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith("-setup.exe")) | select(.name | endswith(".sig") | not) | .url' | head -1)
-          WIN_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | test("\\.(nsis\\.zip|exe)\\.sig$")) | .url' | head -1)
-          # Find the .app.tar.gz and its signature (macOS)
           MAC_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".app.tar.gz")) | select(.name | endswith(".sig") | not) | .url' | head -1)
-          MAC_SIG_URL=$(echo "$RELEASE" | jq -r '.[] | select(.name | endswith(".app.tar.gz.sig")) | .url' | head -1)
-          # Debug: print found assets
           echo "WIN_URL=$WIN_URL"
-          echo "WIN_SIG_URL=$WIN_SIG_URL"
           echo "MAC_URL=$MAC_URL"
-          echo "MAC_SIG_URL=$MAC_SIG_URL"
+          # Download only .sig files using gh (handles auth automatically)
+          mkdir -p /tmp/sigs
+          gh release download "$TAG" --pattern "*.sig" --dir /tmp/sigs --clobber
+          ls /tmp/sigs/
           WIN_SIG=""
-          if [ -n "$WIN_SIG_URL" ] && [ "$WIN_SIG_URL" != "null" ]; then
-            WIN_SIG=$(curl -sL "$WIN_SIG_URL")
+          WIN_SIG_FILE=$(ls /tmp/sigs/*.exe.sig 2>/dev/null | head -1)
+          if [ -n "$WIN_SIG_FILE" ]; then
+            WIN_SIG=$(cat "$WIN_SIG_FILE")
+            echo "WIN_SIG found (${#WIN_SIG} chars)"
+          else
+            echo "WIN_SIG: not found"
           fi
           MAC_SIG=""
-          if [ -n "$MAC_SIG_URL" ] && [ "$MAC_SIG_URL" != "null" ]; then
-            MAC_SIG=$(curl -sL "$MAC_SIG_URL")
+          MAC_SIG_FILE=$(ls /tmp/sigs/*.app.tar.gz.sig 2>/dev/null | head -1)
+          if [ -n "$MAC_SIG_FILE" ]; then
+            MAC_SIG=$(cat "$MAC_SIG_FILE")
+            echo "MAC_SIG found (${#MAC_SIG} chars)"
+          else
+            echo "MAC_SIG: not found"
           fi
           cat > latest.json << ENDJSON
           {

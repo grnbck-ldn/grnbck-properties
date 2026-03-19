@@ -23,28 +23,6 @@ type SortKey =
   | "roe"
   | "starred";
 
-function SetNameInline({ onSaved }: { onSaved: () => void }) {
-  const [name, setName] = React.useState("");
-  async function save() {
-    if (!name.trim()) return;
-    const userId = (await supabase.auth.getUser()).data.user?.id;
-    if (!userId) return;
-    await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", userId);
-    onSaved();
-  }
-  return (
-    <div className="row" style={{ marginTop: 4 }}>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Your full name"
-        style={{ width: 200 }}
-        onKeyDown={(e) => e.key === "Enter" && save()}
-      />
-      <button className="secondary" onClick={save}>Set name</button>
-    </div>
-  );
-}
 
 export function App() {
   const [session, setSession] = useState<
@@ -134,6 +112,16 @@ export function App() {
         setProfile(null);
         setProperties([]);
         return;
+      }
+
+      // Auto-sync full_name from auth metadata if not yet saved in profiles
+      if (!prof.data.full_name) {
+        const authUser = (await supabase.auth.getUser()).data.user;
+        const authName = authUser?.user_metadata?.full_name as string | undefined;
+        if (authName) {
+          await supabase.from("profiles").update({ full_name: authName }).eq("id", userId);
+          prof.data.full_name = authName;
+        }
       }
 
       setProfile(prof.data as ProfileRow);
@@ -360,9 +348,6 @@ export function App() {
           )}
           {profile && profile.full_name && (
             <div className="small muted" style={{ marginTop: 2 }}>{profile.full_name}</div>
-          )}
-          {profile && !profile.full_name && (
-            <SetNameInline onSaved={() => loadProfileAndProperties()} />
           )}
         </div>
         <div className="row">

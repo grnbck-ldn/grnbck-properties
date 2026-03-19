@@ -35,10 +35,13 @@ export type PropertyRow = {
   hold_period_years: number | null; // e.g. 5
   rent_growth_pct: number | null;   // e.g. 3 means 3%
   value_growth_pct: number | null;  // e.g. 3 means 3%
+
+  starred: boolean | null;
 };
 
 export type ProfileRow = {
   id: string;
   org_id: string;
   role: string;
+  full_name: string | null;
 };

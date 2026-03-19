@@ -18,7 +18,33 @@ type SortKey =
   | "price_gbp"
   | "annual_rent_gbp"
   | "ltv_pct"
-  | "interest_rate_pct";
+  | "interest_rate_pct"
+  | "yield"
+  | "roe"
+  | "starred";
+
+function SetNameInline({ onSaved }: { onSaved: () => void }) {
+  const [name, setName] = React.useState("");
+  async function save() {
+    if (!name.trim()) return;
+    const userId = (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) return;
+    await supabase.from("profiles").update({ full_name: name.trim() }).eq("id", userId);
+    onSaved();
+  }
+  return (
+    <div className="row" style={{ marginTop: 4 }}>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Your full name"
+        style={{ width: 200 }}
+        onKeyDown={(e) => e.key === "Enter" && save()}
+      />
+      <button className="secondary" onClick={save}>Set name</button>
+    </div>
+  );
+}
 
 export function App() {
   const [session, setSession] = useState<
@@ -31,6 +57,9 @@ export function App() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+
+  const [orgProfiles, setOrgProfiles] = useState<Record<string, string>>({});
 
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("updated_at");
@@ -109,10 +138,21 @@ export function App() {
 
       setProfile(prof.data as ProfileRow);
 
+      const allProfs = await supabase
+        .from("profiles")
+        .select("id, full_name")
+        .eq("org_id", prof.data.org_id);
+      if (!allProfs.error) {
+        const map: Record<string, string> = {};
+        for (const r of allProfs.data ?? []) {
+          if ((r as any).full_name) map[r.id] = (r as any).full_name;
+        }
+        setOrgProfiles(map);
+      }
+
       const props = await supabase
         .from("properties")
         .select("*")
-        .order(sortKey, { ascending: !sortDesc })
         .limit(500);
 
       if (props.error) throw props.error;
@@ -132,17 +172,50 @@ export function App() {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session, sortKey, sortDesc]);
+  }, [session]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return properties;
-    return properties.filter((p) =>
-      [p.address, p.borough ?? "", p.area ?? "", p.selling_agent ?? ""].some((v) =>
-        v.toLowerCase().includes(q)
-      )
-    );
-  }, [properties, search]);
+    let result = q
+      ? properties.filter((p) =>
+          [p.address, p.borough ?? "", p.area ?? "", p.selling_agent ?? ""].some((v) =>
+            v.toLowerCase().includes(q)
+          )
+        )
+      : [...properties];
+
+    result.sort((a, b) => {
+      let av: number | string | null = null;
+      let bv: number | string | null = null;
+
+      if (sortKey === "yield") {
+        const calc = (p: PropertyRow) => {
+          const price = p.price_gbp;
+          const fees = price != null ? price * (p.fees_pct ?? 0.01) : null;
+          return calcNetYield({ sqm: p.sqm, annualRent: p.annual_rent_gbp, opexPerSqm: p.opex_per_sqm_gbp_per_year, price, fees, stampDuty: p.stamp_duty_gbp });
+        };
+        av = calc(a); bv = calc(b);
+      } else if (sortKey === "roe") {
+        const calc = (p: PropertyRow) => {
+          const price = p.price_gbp;
+          const fees = price != null ? price * (p.fees_pct ?? 0.01) : null;
+          return calcTotalReturnOnEquity({ price, fees, stampDuty: p.stamp_duty_gbp, annualRent: p.annual_rent_gbp, sqm: p.sqm, opexPerSqm: p.opex_per_sqm_gbp_per_year, ltvPct: p.ltv_pct, interestRatePct: p.interest_rate_pct, valueGrowthPct: p.value_growth_pct });
+        };
+        av = calc(a); bv = calc(b);
+      } else {
+        av = (a as any)[sortKey] ?? null;
+        bv = (b as any)[sortKey] ?? null;
+      }
+
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return sortDesc ? -cmp : cmp;
+    });
+
+    return result;
+  }, [properties, search, sortKey, sortDesc]);
 
   async function signIn() {
     setError(null);
@@ -153,7 +226,11 @@ export function App() {
   async function signUp() {
     setError(null);
     setSuccess(null);
-    const { error } = await supabase.auth.signUp({ email, password });
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName.trim() || null } },
+    });
     if (error) setError(error.message);
     else setSuccess("Account created!");
   }
@@ -193,6 +270,16 @@ export function App() {
     else await loadProfileAndProperties();
   }
 
+  async function toggleStar(p: PropertyRow) {
+    const next = !p.starred;
+    setProperties((prev) => prev.map((r) => (r.id === p.id ? { ...r, starred: next } : r)));
+    const { error } = await supabase.from("properties").update({ starred: next }).eq("id", p.id);
+    if (error) {
+      setError(error.message);
+      setProperties((prev) => prev.map((r) => (r.id === p.id ? { ...r, starred: !next } : r)));
+    }
+  }
+
   if (!session) {
     return (
       <div className="container">
@@ -203,6 +290,15 @@ export function App() {
           </p>
 
           <div className="field" style={{ marginTop: 14 }}>
+            <label>Full name <span className="muted small">(for new accounts)</span></label>
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Jane Smith"
+            />
+          </div>
+
+          <div className="field" style={{ marginTop: 12 }}>
             <label>Email</label>
             <input
               value={email}
@@ -262,6 +358,12 @@ export function App() {
               No org profile yet — ask admin to add you to <code>profiles</code>.
             </div>
           )}
+          {profile && profile.full_name && (
+            <div className="small muted" style={{ marginTop: 2 }}>{profile.full_name}</div>
+          )}
+          {profile && !profile.full_name && (
+            <SetNameInline onSaved={() => loadProfileAndProperties()} />
+          )}
         </div>
         <div className="row">
           <button className="secondary" onClick={() => loadProfileAndProperties()}>
@@ -310,11 +412,14 @@ export function App() {
                 />
 
                 <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)}>
+                  <option value="starred">Sort: Starred</option>
                   <option value="updated_at">Sort: Last updated</option>
                   <option value="address">Sort: Address</option>
                   <option value="borough">Sort: Borough</option>
                   <option value="price_gbp">Sort: Price</option>
                   <option value="annual_rent_gbp">Sort: Rent</option>
+                  <option value="yield">Sort: Yield</option>
+                  <option value="roe">Sort: ROE</option>
                   <option value="ltv_pct">Sort: LTV</option>
                   <option value="interest_rate_pct">Sort: Interest rate</option>
                 </select>
@@ -357,6 +462,7 @@ export function App() {
             <table className="table">
               <thead>
                 <tr>
+                  <th></th>
                   <th>Address</th>
                   <th>Borough / Area</th>
                   <th>ROE</th>
@@ -425,10 +531,20 @@ export function App() {
                   return (
                     <React.Fragment key={p.id}>
                       <tr>
+                        <td
+                          style={{ textAlign: "center", fontSize: 18, cursor: "pointer", userSelect: "none" }}
+                          onClick={() => toggleStar(p)}
+                          title={p.starred ? "Unstar" : "Star"}
+                        >
+                          {p.starred ? "★" : "☆"}
+                        </td>
                         <td style={{ minWidth: 260 }}>
                           <div style={{ fontWeight: 600 }}>{p.address}</div>
                           <div className="small">Updated: {new Date(p.updated_at).toLocaleString("en-GB")}</div>
                           {p.selling_agent && <div className="small">Agent: {p.selling_agent}</div>}
+                          {orgProfiles[p.created_by] && (
+                            <div className="small muted">Added by: {orgProfiles[p.created_by]}</div>
+                          )}
                         </td>
 
                         <td style={{ minWidth: 170 }}>
@@ -504,7 +620,7 @@ export function App() {
 
                       {isOpen && (
                         <tr>
-                          <td colSpan={13}>
+                          <td colSpan={14}>
                             <div
                               style={{
                                 display: "grid",
@@ -573,7 +689,7 @@ export function App() {
 
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={13} className="muted">
+                    <td colSpan={14} className="muted">
                       No properties found.
                     </td>
                   </tr>

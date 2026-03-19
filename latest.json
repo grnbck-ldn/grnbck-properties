@@ -1,23 +1,23 @@
 {
-  "version": "1.2.8",
-  "notes": "Update to v1.2.8",
-  "pub_date": "2026-03-13T09:36:04Z",
+  "version": "1.2.9",
+  "notes": "Update to v1.2.9",
+  "pub_date": "2026-03-19T18:23:59Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY2xoSUNpNFdGU2toQ0RBaXd0WDdZSXhwNWQzQVBFWWNHMmVMTVNLUzRpcVpLUlIyV3JMY3hoRUwwSmRTS1QyMHMyS0JScE1qOTBRZHF2OFYwQ1YweUFvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczMzk0NTUwCWZpbGU6Z3JuYmNrIExvbmRvbl8xLjIuOF94NjQtc2V0dXAuZXhlCjJ6VEx1Tk1YN005a1huemRZczVUUTFnMGk1dEFqN1EwS3F2S3RBSXEwenYxdXBSVXVZUzJ1VkRubyswRHlHQzRDZFVtTERPdlpFZXFSbUVQZDczdkRBPT0K",
-      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.8/grnbck.London_1.2.8_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY3RmSnhsT0F2YTlrZHFkWVRsbVpBT3J6QjBRVEJpRmxrNlR5R1RiY3Z0eFNqeGJXdHROOFNkQWxJWkxieFRKdmFReTRUWlFTSjBXbDhtTFcrUUc0dEFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczOTQ0NjIzCWZpbGU6Z3JuYmNrIExvbmRvbl8xLjIuOV94NjQtc2V0dXAuZXhlClUxVlhzd0ZwWjQ4ZU9RRk9qWkZXTGxZSjdJMHJlRHFyL01wa2dOTFN4ZHR3bWVLeTU0TlUrcTgzU3NML1hCSjVOQWtjWXBFZ2pnbktHRnlkQzJzVkRnPT0K",
+      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.9/grnbck.London_1.2.9_x64-setup.exe"
     },
     "darwin-universal": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY2dKL0NWdk10TXZhc01aODZ2Lzc0c0kxdlpOTm8rUVZwZFNXdkpudlE0SFZ2NWtCYVh0OGRpb1k5WnJJdFI1SE1KaGlKdm1UK2ZoTHNDcmxtakp3SVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczMzk0MDY2CWZpbGU6Z3JuYmNrIExvbmRvbi5hcHAudGFyLmd6CjBlL2w4MkRhTFFPNis2cUEweE55UUUzeGJPdEhjMU5YSHdndFlwRjZEZ3J5RHZzc1hka1FMZXFmanhyY3AyRWI5MlI5dmpVT1NrakRSLzRYNlRzREN3PT0K",
-      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.8/grnbck.London_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY2s3aHNVS0o0T2RwT0RGQU1yRUczL0l3eEFTZlRyUXh0amYyUDB0N0RuaHBxdjRNOTJ4NmduQS9haEdDOFZockk1QXlkRnZMd0ozTFdGM2tUSzJHaEEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczOTQ0NTQ5CWZpbGU6Z3JuYmNrIExvbmRvbi5hcHAudGFyLmd6ClluZmhxdm51VU5nMU94MnJTdkFEOTQzNzgxMHA4OSswOUY1Y0JlWHIwcXptWEZVLzJuVEcvcjg2VFVlNFRnSTIvZFIzOXlXVnl1b0pGZjNmUjRZb0NRPT0K",
+      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.9/grnbck.London_universal.app.tar.gz"
     },
     "darwin-aarch64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY2dKL0NWdk10TXZhc01aODZ2Lzc0c0kxdlpOTm8rUVZwZFNXdkpudlE0SFZ2NWtCYVh0OGRpb1k5WnJJdFI1SE1KaGlKdm1UK2ZoTHNDcmxtakp3SVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczMzk0MDY2CWZpbGU6Z3JuYmNrIExvbmRvbi5hcHAudGFyLmd6CjBlL2w4MkRhTFFPNis2cUEweE55UUUzeGJPdEhjMU5YSHdndFlwRjZEZ3J5RHZzc1hka1FMZXFmanhyY3AyRWI5MlI5dmpVT1NrakRSLzRYNlRzREN3PT0K",
-      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.8/grnbck.London_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY2s3aHNVS0o0T2RwT0RGQU1yRUczL0l3eEFTZlRyUXh0amYyUDB0N0RuaHBxdjRNOTJ4NmduQS9haEdDOFZockk1QXlkRnZMd0ozTFdGM2tUSzJHaEEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczOTQ0NTQ5CWZpbGU6Z3JuYmNrIExvbmRvbi5hcHAudGFyLmd6ClluZmhxdm51VU5nMU94MnJTdkFEOTQzNzgxMHA4OSswOUY1Y0JlWHIwcXptWEZVLzJuVEcvcjg2VFVlNFRnSTIvZFIzOXlXVnl1b0pGZjNmUjRZb0NRPT0K",
+      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.9/grnbck.London_universal.app.tar.gz"
     },
     "darwin-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY2dKL0NWdk10TXZhc01aODZ2Lzc0c0kxdlpOTm8rUVZwZFNXdkpudlE0SFZ2NWtCYVh0OGRpb1k5WnJJdFI1SE1KaGlKdm1UK2ZoTHNDcmxtakp3SVFjPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczMzk0MDY2CWZpbGU6Z3JuYmNrIExvbmRvbi5hcHAudGFyLmd6CjBlL2w4MkRhTFFPNis2cUEweE55UUUzeGJPdEhjMU5YSHdndFlwRjZEZ3J5RHZzc1hka1FMZXFmanhyY3AyRWI5MlI5dmpVT1NrakRSLzRYNlRzREN3PT0K",
-      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.8/grnbck.London_universal.app.tar.gz"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVST2tneE5HMkhBY2s3aHNVS0o0T2RwT0RGQU1yRUczL0l3eEFTZlRyUXh0amYyUDB0N0RuaHBxdjRNOTJ4NmduQS9haEdDOFZockk1QXlkRnZMd0ozTFdGM2tUSzJHaEEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzczOTQ0NTQ5CWZpbGU6Z3JuYmNrIExvbmRvbi5hcHAudGFyLmd6ClluZmhxdm51VU5nMU94MnJTdkFEOTQzNzgxMHA4OSswOUY1Y0JlWHIwcXptWEZVLzJuVEcvcjg2VFVlNFRnSTIvZFIzOXlXVnl1b0pGZjNmUjRZb0NRPT0K",
+      "url": "https://github.com/grnbck-ldn/grnbck-properties/releases/download/v1.2.9/grnbck.London_universal.app.tar.gz"
     }
   }
 }

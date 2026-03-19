@@ -236,13 +236,13 @@ export function App() {
     const row: any = {
       ...payload,
       org_id: profile.org_id,
-      created_by: user.id,
     };
 
     if (payload.id) {
       const { error } = await supabase.from("properties").update(row).eq("id", payload.id);
       if (error) throw error;
     } else {
+      row.created_by = user.id;
       const { error } = await supabase.from("properties").insert(row);
       if (error) throw error;
     }

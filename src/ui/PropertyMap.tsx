@@ -1,10 +1,45 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup } from "react-leaflet";
 import { open } from "@tauri-apps/plugin-shell";
 import L from "leaflet";
 import { PropertyRow } from "../lib/types";
 import { geocodeAddresses, Coordinates } from "../lib/geocoding";
 import { fmtGBP, fmtPct, calcNetYield, calcTotalReturnOnEquity } from "../lib/finance";
+
+const LONDON_UNIVERSITIES: { name: string; lat: number; lng: number }[] = [
+  { name: "UCL", lat: 51.5246, lng: -0.1340 },
+  { name: "Imperial College London", lat: 51.4988, lng: -0.1749 },
+  { name: "King's College London", lat: 51.5115, lng: -0.1160 },
+  { name: "LSE", lat: 51.5144, lng: -0.1165 },
+  { name: "Queen Mary University", lat: 51.5243, lng: -0.0399 },
+  { name: "City, University of London", lat: 51.5280, lng: -0.1025 },
+  { name: "SOAS University", lat: 51.5224, lng: -0.1296 },
+  { name: "University of Westminster", lat: 51.5178, lng: -0.1448 },
+  { name: "University of Greenwich", lat: 51.4839, lng: -0.0054 },
+  { name: "University of East London", lat: 51.5082, lng: 0.0589 },
+  { name: "London Metropolitan University", lat: 51.5488, lng: -0.0840 },
+  { name: "Goldsmiths, University of London", lat: 51.4744, lng: -0.0353 },
+  { name: "Brunel University London", lat: 51.5327, lng: -0.4728 },
+  { name: "Kingston University", lat: 51.4048, lng: -0.3064 },
+  { name: "Middlesex University", lat: 51.5897, lng: -0.2290 },
+  { name: "University of Roehampton", lat: 51.4500, lng: -0.2452 },
+  { name: "London South Bank University", lat: 51.4988, lng: -0.1030 },
+  { name: "University of the Arts London", lat: 51.5148, lng: -0.1161 },
+  { name: "Royal Holloway", lat: 51.4266, lng: -0.5635 },
+  { name: "Birkbeck, University of London", lat: 51.5219, lng: -0.1305 },
+];
+
+const uniIcon = L.divIcon({
+  className: "",
+  html: `<div style="
+    width:16px;height:16px;border-radius:50%;
+    background:#6366F1;border:1.5px solid #1a2233;
+    display:flex;align-items:center;justify-content:center;
+    font-size:9px;color:white;font-weight:bold;
+  ">U</div>`,
+  iconSize: [16, 16],
+  iconAnchor: [8, 8],
+});
 
 // Function to get marker color based on ROE performance
 function getMarkerColor(roePct: number | null): string {
@@ -22,6 +57,8 @@ export function PropertyMap({ properties }: Props) {
   const [coordinates, setCoordinates] = useState<Map<string, Coordinates>>(new Map());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUnis, setShowUnis] = useState(true);
+  const [failedAddresses, setFailedAddresses] = useState<string[]>([]);
 
   useEffect(() => {
     if (properties.length === 0) return;
@@ -38,10 +75,13 @@ export function PropertyMap({ properties }: Props) {
         const coords = await geocodeAddresses(addresses);
         setCoordinates(coords);
 
+        const failed = addresses.filter(a => !coords.has(a));
+        setFailedAddresses(failed);
+
         if (coords.size === 0) {
           setError("Could not geocode any addresses. Please check property addresses.");
-        } else if (coords.size < addresses.length) {
-          setError(`Geocoded ${coords.size} of ${addresses.length} addresses. Some properties may not appear on the map.`);
+        } else if (failed.length > 0) {
+          setError(`Could not geocode: ${failed.join(", ")}`);
         }
       } catch (err) {
         setError("Failed to load property locations.");
@@ -94,6 +134,14 @@ export function PropertyMap({ properties }: Props) {
               <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#EF4444', border: '2px solid #1a2233' }}></div>
               <span style={{ color: 'var(--muted)' }}>&lt;10% ROE</span>
             </div>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer', opacity: showUnis ? 1 : 0.4 }}
+              onClick={() => setShowUnis(!showUnis)}
+              title={showUnis ? "Click to hide universities" : "Click to show universities"}
+            >
+              <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: '#6366F1', border: '2px solid #1a2233', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 7, color: 'white', fontWeight: 'bold' }}>U</div>
+              <span style={{ color: 'var(--muted)' }}>University {showUnis ? '(on)' : '(off)'}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -118,6 +166,8 @@ export function PropertyMap({ properties }: Props) {
             const fees = price != null ? price * (property.fees_pct ?? 0.01) : null;
             const stampDuty = property.stamp_duty_gbp ?? null;
 
+            const refurb = property.refurbishment_gbp ?? null;
+
             const yieldPct = calcNetYield({
               sqm: property.sqm,
               annualRent: property.annual_rent_gbp,
@@ -125,12 +175,14 @@ export function PropertyMap({ properties }: Props) {
               price,
               fees,
               stampDuty,
+              refurbishment: refurb,
             });
 
             const totalReturnOnEquity = calcTotalReturnOnEquity({
               price,
               fees,
               stampDuty,
+              refurbishment: refurb,
               annualRent: property.annual_rent_gbp,
               sqm: property.sqm,
               opexPerSqm: property.opex_per_sqm_gbp_per_year,
@@ -221,6 +273,14 @@ export function PropertyMap({ properties }: Props) {
               </CircleMarker>
             );
           })}
+
+          {showUnis && LONDON_UNIVERSITIES.map((uni) => (
+            <Marker key={uni.name} position={[uni.lat, uni.lng]} icon={uniIcon}>
+              <Popup>
+                <div style={{ padding: "4px 0", fontWeight: 600, color: '#1F2937' }}>{uni.name}</div>
+              </Popup>
+            </Marker>
+          ))}
         </MapContainer>
       </div>
     </div>

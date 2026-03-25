@@ -51,20 +51,24 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
   const [sqm, setSqm] = useState(initial?.sqm?.toString() ?? "");
   const [price, setPrice] = useState(initial?.price_gbp?.toString() ?? "");
   const [opexPerSqm, setOpexPerSqm] = useState(initial?.opex_per_sqm_gbp_per_year?.toString() ?? "49");
-  const [annualRent, setAnnualRent] = useState(initial?.annual_rent_gbp?.toString() ?? "");
+  const [annualRentResidential, setAnnualRentResidential] = useState(initial?.annual_rent_residential_gbp?.toString() ?? "");
+  const [annualRentCommercial, setAnnualRentCommercial] = useState(initial?.annual_rent_commercial_gbp?.toString() ?? "");
 
   // New: property type + fees + stamp duty
   const [propertyType, setPropertyType] = useState<"residential" | "mixed_use" | "residential_6plus">(
     (initial as any)?.property_type ?? "residential"
   );
 
-  // UI stores fees as %, DB stores decimal (0.01 = 1%)
-  const [feesPct, setFeesPct] = useState<number>(((initial as any)?.fees_pct ?? 0.01) * 100);
+  // UI stores fees as % string, DB stores decimal (0.01 = 1%)
+  const [feesPctStr, setFeesPctStr] = useState<string>(String(((initial as any)?.fees_pct ?? 0.01) * 100));
 
   // stamp duty is auto unless override typed
   const [stampDutyOverride, setStampDutyOverride] = useState<string>(
     (initial as any)?.stamp_duty_gbp != null ? String((initial as any).stamp_duty_gbp) : ""
   );
+
+  // Refurbishment (capex)
+  const [refurbishment, setRefurbishment] = useState(initial?.refurbishment_gbp?.toString() ?? "");
 
   // Project assumptions
   const [ltvPct, setLtvPct] = useState((initial as any)?.ltv_pct?.toString() ?? "65");
@@ -73,13 +77,25 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
   const [rentGrowthPct, setRentGrowthPct] = useState((initial as any)?.rent_growth_pct?.toString() ?? "2");
   const [valueGrowthPct, setValueGrowthPct] = useState((initial as any)?.value_growth_pct?.toString() ?? "2");
 
+  const resRent = useMemo(() => numOrNull(annualRentResidential), [annualRentResidential]);
+  const comRent = useMemo(() => numOrNull(annualRentCommercial), [annualRentCommercial]);
+  const annualRentTotal = useMemo(() => {
+    if (resRent == null && comRent == null) return null;
+    return (resRent ?? 0) + (comRent ?? 0);
+  }, [resRent, comRent]);
+
   const priceNum = useMemo(() => numOrNull(price), [price]);
+  const refurbNum = useMemo(() => numOrNull(refurbishment), [refurbishment]);
+
+  const feesPctNum = useMemo(() => {
+    const n = Number(feesPctStr);
+    return Number.isFinite(n) ? n : 1;
+  }, [feesPctStr]);
 
   const feesGbp = useMemo(() => {
     if (priceNum == null) return null;
-    const pct = Number.isFinite(feesPct) ? feesPct / 100 : 0.01;
-    return priceNum * pct;
-  }, [priceNum, feesPct]);
+    return priceNum * (feesPctNum / 100);
+  }, [priceNum, feesPctNum]);
 
   const stampDutyAuto = useMemo(() => calcStampDuty(priceNum, propertyType), [priceNum, propertyType]);
 
@@ -91,22 +107,24 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
   const yieldPct = useMemo(() => {
     return calcNetYield({
       sqm: numOrNull(sqm),
-      annualRent: numOrNull(annualRent),
+      annualRent: annualRentTotal,
       opexPerSqm: numOrNull(opexPerSqm),
       price: priceNum,
       fees: feesGbp,
       stampDuty: stampDutyGbp,
+      refurbishment: refurbNum,
     });
-  }, [sqm, annualRent, opexPerSqm, priceNum, feesGbp, stampDutyGbp]);
+  }, [sqm, annualRentTotal, opexPerSqm, priceNum, feesGbp, stampDutyGbp, refurbNum]);
 
   const grossIrr = useMemo(() => {
     return calcGrossIrr({
       price: priceNum,
-      annualRent: numOrNull(annualRent),
+      annualRent: annualRentTotal,
       sqm: numOrNull(sqm),
       opexPerSqm: numOrNull(opexPerSqm),
       fees: feesGbp,
       stampDuty: stampDutyGbp,
+      refurbishment: refurbNum,
       ltvPct: numOrNull(ltvPct),
       interestRatePct: numOrNull(interestRatePct),
       holdYears: numOrNull(holdYears),
@@ -115,11 +133,12 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
     });
   }, [
     priceNum,
-    annualRent,
+    annualRentTotal,
     sqm,
     opexPerSqm,
     feesGbp,
     stampDutyGbp,
+    refurbNum,
     ltvPct,
     interestRatePct,
     holdYears,
@@ -132,7 +151,8 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
       price: priceNum,
       fees: feesGbp,
       stampDuty: stampDutyGbp,
-      annualRent: numOrNull(annualRent),
+      refurbishment: refurbNum,
+      annualRent: annualRentTotal,
       sqm: numOrNull(sqm),
       opexPerSqm: numOrNull(opexPerSqm),
       ltvPct: numOrNull(ltvPct),
@@ -143,7 +163,8 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
     priceNum,
     feesGbp,
     stampDutyGbp,
-    annualRent,
+    refurbNum,
+    annualRentTotal,
     sqm,
     opexPerSqm,
     ltvPct,
@@ -208,7 +229,7 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
 
     setSaving(true);
     try {
-      const feesPctDecimal = Number.isFinite(feesPct) ? feesPct / 100 : 0.01;
+      const feesPctDecimal = Number.isFinite(feesPctNum) ? feesPctNum / 100 : 0.01;
 
       await onSave({
         id: initial?.id,
@@ -223,12 +244,15 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
         sqm: numOrNull(sqm),
         price_gbp: priceNum,
         opex_per_sqm_gbp_per_year: numOrNull(opexPerSqm),
-        annual_rent_gbp: numOrNull(annualRent),
+        annual_rent_gbp: annualRentTotal,
+        annual_rent_residential_gbp: resRent,
+        annual_rent_commercial_gbp: comRent,
 
         // NEW fields
         property_type: propertyType,
         fees_pct: feesPctDecimal,
         stamp_duty_gbp: stampDutyGbp,
+        refurbishment_gbp: refurbNum,
 
         ltv_pct: numOrNull(ltvPct),
         interest_rate_pct: numOrNull(interestRatePct),
@@ -335,7 +359,7 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
 
           <div className="field">
             <label>Fees (% of purchase)</label>
-            <input value={String(feesPct)} onChange={(e) => setFeesPct(Number(e.target.value))} inputMode="decimal" />
+            <input value={feesPctStr} onChange={(e) => setFeesPctStr(e.target.value)} inputMode="decimal" />
             <div className="small">Fees (£): {fmtGBP(feesGbp)}</div>
           </div>
 
@@ -350,6 +374,11 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
             <div className="small">
               Auto: {stampDutyAuto != null ? fmtGBP(stampDutyAuto) : "—"} (leave blank to use auto)
             </div>
+          </div>
+
+          <div className="field">
+            <label>Refurbishment (£)</label>
+            <input value={refurbishment} onChange={(e) => setRefurbishment(e.target.value)} inputMode="decimal" placeholder="0" />
           </div>
         </div>
 
@@ -370,8 +399,18 @@ export function PropertyModal({ title, initial, onClose, onSave }: Props) {
           </div>
 
           <div className="field">
-            <label>Annual rent (£)</label>
-            <input value={annualRent} onChange={(e) => setAnnualRent(e.target.value)} inputMode="decimal" />
+            <label>Residential rent (£/yr)</label>
+            <input value={annualRentResidential} onChange={(e) => setAnnualRentResidential(e.target.value)} inputMode="decimal" />
+          </div>
+
+          <div className="field">
+            <label>Commercial rent (£/yr)</label>
+            <input value={annualRentCommercial} onChange={(e) => setAnnualRentCommercial(e.target.value)} inputMode="decimal" />
+          </div>
+
+          <div className="field">
+            <label>Total rent (£/yr)</label>
+            <input value={annualRentTotal != null ? fmtGBP(annualRentTotal) : ""} readOnly />
           </div>
 
           <div className="field">

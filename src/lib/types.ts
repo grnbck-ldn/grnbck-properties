@@ -24,11 +24,14 @@ export type PropertyRow = {
 
   opex_per_sqm_gbp_per_year: number | null;
   annual_rent_gbp: number | null;
+  annual_rent_residential_gbp: number | null;
+  annual_rent_commercial_gbp: number | null;
 
   // NEW fields for fees / SDLT / IRR model
   property_type: PropertyType;      // "residential" | "mixed_use"
   fees_pct: number;                // decimal, e.g. 0.01 = 1%
   stamp_duty_gbp: number | null;   // allow override or stored calc
+  refurbishment_gbp: number | null; // capex: added to total investment
 
   ltv_pct: number | null;           // e.g. 60 means 60%
   interest_rate_pct: number | null; // e.g. 6 means 6%

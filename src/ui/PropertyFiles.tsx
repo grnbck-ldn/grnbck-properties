@@ -7,6 +7,7 @@ interface FileEntry {
   name: string;
   url: string;
   isImage: boolean;
+  createdAt: string;
 }
 
 interface Props {
@@ -39,8 +40,9 @@ export function PropertyFiles({ propertyId }: Props) {
         const path = `${folder}/${f.name}`;
         const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(path);
         const isImage = /\.(png|jpe?g|gif|webp|svg)$/i.test(f.name);
-        return { name: f.name, url: urlData.publicUrl, isImage };
-      });
+        return { name: f.name, url: urlData.publicUrl, isImage, createdAt: f.created_at ?? "" };
+      })
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     setFiles(entries);
     setLoading(false);
   }

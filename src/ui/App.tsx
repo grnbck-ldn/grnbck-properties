@@ -5,6 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { supabase } from "../lib/supabase";
 import { PropertyRow, ProfileRow } from "../lib/types";
 import { calcGrossIrr, calcNetYield, calcTotalReturnOnEquity, fmtGBP, fmtPct } from "../lib/finance";
+import { exportPropertyPdf } from "../lib/exportPdf";
 import { PropertyModal } from "./PropertyModal";
 import { PropertyMap } from "./PropertyMap";
 import { PropertyFinder } from "./PropertyFinder";
@@ -180,14 +181,14 @@ export function App() {
         const calc = (p: PropertyRow) => {
           const price = p.price_gbp;
           const fees = price != null ? price * (p.fees_pct ?? 0.01) : null;
-          return calcNetYield({ sqm: p.sqm, annualRent: p.annual_rent_gbp, opexPerSqm: p.opex_per_sqm_gbp_per_year, price, fees, stampDuty: p.stamp_duty_gbp });
+          return calcNetYield({ sqm: p.sqm, annualRent: p.annual_rent_gbp, opexPerSqm: p.opex_per_sqm_gbp_per_year, price, fees, stampDuty: p.stamp_duty_gbp, refurbishment: p.refurbishment_gbp });
         };
         av = calc(a); bv = calc(b);
       } else if (sortKey === "roe") {
         const calc = (p: PropertyRow) => {
           const price = p.price_gbp;
           const fees = price != null ? price * (p.fees_pct ?? 0.01) : null;
-          return calcTotalReturnOnEquity({ price, fees, stampDuty: p.stamp_duty_gbp, annualRent: p.annual_rent_gbp, sqm: p.sqm, opexPerSqm: p.opex_per_sqm_gbp_per_year, ltvPct: p.ltv_pct, interestRatePct: p.interest_rate_pct, valueGrowthPct: p.value_growth_pct });
+          return calcTotalReturnOnEquity({ price, fees, stampDuty: p.stamp_duty_gbp, refurbishment: p.refurbishment_gbp, annualRent: p.annual_rent_gbp, sqm: p.sqm, opexPerSqm: p.opex_per_sqm_gbp_per_year, ltvPct: p.ltv_pct, interestRatePct: p.interest_rate_pct, valueGrowthPct: p.value_growth_pct });
         };
         av = calc(a); bv = calc(b);
       } else {
@@ -471,6 +472,8 @@ export function App() {
                   const fees = price != null ? price * (p.fees_pct ?? 0.01) : null;
                   const stampDuty = p.stamp_duty_gbp ?? null;
 
+                  const refurb = p.refurbishment_gbp ?? null;
+
                   const yieldPct = calcNetYield({
                     sqm: p.sqm,
                     annualRent: p.annual_rent_gbp,
@@ -478,6 +481,7 @@ export function App() {
                     price,
                     fees,
                     stampDuty,
+                    refurbishment: refurb,
                   });
 
                   const grossIrr = calcGrossIrr({
@@ -487,6 +491,7 @@ export function App() {
                     opexPerSqm: p.opex_per_sqm_gbp_per_year,
                     fees,
                     stampDuty,
+                    refurbishment: refurb,
                     ltvPct: p.ltv_pct,
                     interestRatePct: p.interest_rate_pct,
                     holdYears: p.hold_period_years,
@@ -498,6 +503,7 @@ export function App() {
                     price,
                     fees,
                     stampDuty,
+                    refurbishment: refurb,
                     annualRent: p.annual_rent_gbp,
                     sqm: p.sqm,
                     opexPerSqm: p.opex_per_sqm_gbp_per_year,
@@ -636,6 +642,12 @@ export function App() {
                                 <strong>Stamp duty £:</strong> {fmtGBP(stampDuty)}
                               </div>
 
+                              {p.refurbishment_gbp != null && p.refurbishment_gbp > 0 && (
+                                <div>
+                                  <strong>Refurbishment £:</strong> {fmtGBP(p.refurbishment_gbp)}
+                                </div>
+                              )}
+
                               <div>
                                 <strong>Hold period:</strong>{" "}
                                 {p.hold_period_years != null ? `${p.hold_period_years} yrs` : ""}
@@ -660,11 +672,21 @@ export function App() {
                                 {fmtGBP(
                                   (price ?? 0) * (1 - (p.ltv_pct ?? 0) / 100) +
                                     (fees ?? 0) +
-                                    (stampDuty ?? 0)
+                                    (stampDuty ?? 0) +
+                                    (refurb ?? 0)
                                 )}
                               </div>
                             </div>
                             <PropertyFiles propertyId={p.id} />
+                            <div style={{ marginTop: 14 }}>
+                              <button
+                                className="secondary"
+                                onClick={() => exportPropertyPdf(p, orgProfiles[p.created_by])}
+                                style={{ fontSize: 12, padding: "6px 14px" }}
+                              >
+                                Export PDF
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       )}

@@ -5,8 +5,9 @@ export function calcNetYield(params: {
   price: number | null;
   fees: number | null;
   stampDuty: number | null;
+  refurbishment?: number | null;
 }): number | null {
-  const { sqm, annualRent, opexPerSqm, price, fees, stampDuty } = params;
+  const { sqm, annualRent, opexPerSqm, price, fees, stampDuty, refurbishment } = params;
 
   if (price == null || annualRent == null || !Number.isFinite(price) || price <= 0) return null;
 
@@ -17,7 +18,7 @@ export function calcNetYield(params: {
 
   const net = annualRent - opex;
 
-  const denom = price + (fees ?? 0) + (stampDuty ?? 0);
+  const denom = price + (fees ?? 0) + (stampDuty ?? 0) + (refurbishment ?? 0);
   if (!Number.isFinite(denom) || denom <= 0) return null;
 
   return net / denom;
@@ -132,6 +133,7 @@ export function calcGrossIrr(args: {
 
   fees: number | null;
   stampDuty: number | null;
+  refurbishment?: number | null;
 
   ltvPct: number | null;
   interestRatePct: number | null;
@@ -146,6 +148,7 @@ export function calcGrossIrr(args: {
     opexPerSqm,
     fees,
     stampDuty,
+    refurbishment,
     ltvPct,
     interestRatePct,
     holdYears,
@@ -163,7 +166,7 @@ export function calcGrossIrr(args: {
   const gVal = (valueGrowthPct ?? 0) / 100;
 
   const debt = price * ltv;
-  const equityOut = price * (1 - ltv) + (fees ?? 0) + (stampDuty ?? 0);
+  const equityOut = price * (1 - ltv) + (fees ?? 0) + (stampDuty ?? 0) + (refurbishment ?? 0);
 
   const opex0 =
     sqm != null && opexPerSqm != null && Number.isFinite(sqm) && Number.isFinite(opexPerSqm)
@@ -191,6 +194,7 @@ export function calcTotalReturnOnEquity(args: {
   price: number | null;
   fees: number | null;
   stampDuty: number | null;
+  refurbishment?: number | null;
   annualRent: number | null;
   sqm: number | null;
   opexPerSqm: number | null;
@@ -202,6 +206,7 @@ export function calcTotalReturnOnEquity(args: {
     price,
     fees,
     stampDuty,
+    refurbishment,
     annualRent,
     sqm,
     opexPerSqm,
@@ -219,7 +224,7 @@ export function calcTotalReturnOnEquity(args: {
   const growthRate = (valueGrowthPct ?? 0) / 100;
 
   // Calculate total investment and equity
-  const totalInvestment = price + (fees ?? 0) + (stampDuty ?? 0);
+  const totalInvestment = price + (fees ?? 0) + (stampDuty ?? 0) + (refurbishment ?? 0);
   const debt = price * ltv;
   const equity = totalInvestment - debt;
 

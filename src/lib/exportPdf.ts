@@ -264,7 +264,7 @@ export async function exportPropertyPdf(p: PropertyRow, addedBy?: string) {
   const lValX = colL + 38;
   if (p.selling_agent) ly = row(doc, "Agent", p.selling_agent, colL + 6, ly, lValX);
   if (addedBy) ly = row(doc, "Created by", addedBy, colL + 6, ly, lValX);
-  ly = row(doc, "Type", p.property_type === "mixed_use" ? "Mixed-use" : p.property_type === "residential_6plus" ? "Residential 6+" : "Residential", colL + 6, ly, lValX);
+  ly = row(doc, "Type", p.property_type === "mixed_use" ? "Mixed-use" : "Residential", colL + 6, ly, lValX);
   if (p.in_spv != null) ly = row(doc, "SPV", p.in_spv ? "Yes" : "No", colL + 6, ly, lValX);
   if (p.sqm) ly = row(doc, "Size", `${p.sqm} m\u00B2`, colL + 6, ly, lValX);
 
